@@ -310,7 +310,7 @@ export class Jobs {
 }
 
 /** A disc with a mark on it: a gold "!" for a new job, a green "✓" when you can hand it over. */
-export function markTexture(sym: "!" | "✓") {
+function markTexture(sym: "!" | "✓") {
   const c = document.createElement("canvas");
   c.width = c.height = 64;
   const g = c.getContext("2d")!;

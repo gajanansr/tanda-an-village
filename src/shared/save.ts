@@ -3,7 +3,6 @@ import { CAN_MAX } from "./crops.js";
 import type { GodownLot, Loan } from "./bank.js";
 import { type MissionState, newMissions } from "./missions.js";
 import type { Bulls } from "./bulls.js";
-import type { Hire } from "./helpers.js";
 import type { Listing } from "./land.js";
 import { LAYOUT, STARTER_PLOT, type World } from "./world.js";
 
@@ -52,7 +51,6 @@ export type Save = {
   jobs?: { day: number; done: number[]; carrying?: number }; // today's kaam: slots done, and a tiffin in hand
   fishing?: { day: number; casts: number; n: number }; // casts today, and every cast ever (it picks the next bite)
   kabaddi?: { day: number; played: number; wins: number }; // the day the last prize was given
-  helpers?: Hire[]; // labourers hired from the mukadam, for today or tomorrow
 };
 
 export type Trip = { startedAt: number; load: Record<string, number> };

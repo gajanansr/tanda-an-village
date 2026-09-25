@@ -53,7 +53,6 @@ import { Playground } from "./scene/playground";
 import { Kabaddi, RAIDS } from "./kabaddi";
 import { atTalavEdge, Fishing } from "./fishing";
 import { DAYTIME, Jobs } from "./jobs";
-import { Helpers } from "./helpers";
 import { GIVERS } from "../shared/jobs";
 import { awaySummary, daySummary } from "../shared/summary";
 import { SummaryCard } from "./ui/summary";
@@ -61,7 +60,6 @@ import { HowToCard } from "./ui/howto";
 import { cropName, isEnglish, LANG as LANG_CODE, t as tr } from "./i18n";
 import { SHOP_HOURS } from "../shared/hours";
 import { arrived, firstTime, metric } from "./metrics";
-import { HELPER_MIN_PLOTS } from "../shared/helpers";
 
 type Hooks = {
   ready: boolean;
@@ -592,21 +590,7 @@ const jobs = new Jobs({
   closeDialogue: () => guide.onDialogue(false),
 });
 scene.add(jobs.group);
-// ---- majoor: labourers from the mukadam's house, hired by the day ----
-const helpers = new Helpers({
-  world,
-  nav,
-  ground: (x, z) => hf.at(x, z),
-  save: () => game.save,
-  now: () => game.now(),
-  act: (a) => game.act(a),
-  toast: (m, k) => hud.toast(m, k),
-  sound: (n) => audio.play(n),
-  dialogue: (who, title, text, buttons) => guide.dialogue(who, title, text, buttons),
-  closeDialogue: () => guide.onDialogue(false),
-});
-scene.add(helpers.group);
-fixedBodies.push(...jobs.bodies(), ...helpers.bodies(), { pos: playground.dagduAt, r: 0.4, fixed: true });
+fixedBodies.push(...jobs.bodies(), { pos: playground.dagduAt, r: 0.4, fixed: true });
 const kabaddi = new Kabaddi({
   ui: uiRoot,
   ground: (x, z) => hf.at(x, z),
@@ -632,7 +616,7 @@ const nearDagdu = () => Math.hypot(body.pos.x - playground.dagduAt.x, body.pos.z
 function pastimeHint(): string {
   if (kabaddi.active || fishing.active) return "";
   const h = nowHour();
-  const job = jobs.hint(body.pos, h) || helpers.hint(body.pos, h);
+  const job = jobs.hint(body.pos, h);
   if (job) return job;
   if (nearDagdu() && DAYTIME(h)) return `<kbd>E</kbd> ${tr("Talk to Dagdu mama, the old fisherman")}`;
   if (atTalavEdge(body.pos.x, body.pos.z) && !body.inWater) {
@@ -650,7 +634,7 @@ function pastimeInteract(): boolean {
   }
   if (kabaddi.active) return true;
   const h = nowHour();
-  if (jobs.interact(body.pos, h) || helpers.interact(body.pos, h)) return true;
+  if (jobs.interact(body.pos, h)) return true;
   if (nearDagdu() && DAYTIME(h)) {
     guide.dialogue("Dagdu mama · दगडू मामा", "The old fisherman", "Sit, sit. The talav fills from the tekdi every monsoon, and the fish come with it. Cast out past the lotus. When the float dips — strike! Then reel slowly: when the fish pulls hard, let it run, or your line will snap. They bite best at dawn and in the evening. And the maral… the maral you must earn.", [{ label: "Thank you, mama", onClick: () => guide.onDialogue(false) }]);
     return true;
@@ -722,8 +706,7 @@ map.onPick = (p) => {
 };
 function showMap() {
   closeWindows();
-  const kaam: { x: number; z: number; label: string }[] = jobs.open().map((id) => ({ ...jobs.spots().find((g) => g.id === id)!, label: GIVERS[id].name }));
-  if (game.save.plots.length >= HELPER_MIN_PLOTS) kaam.push({ ...helpers.mukadamAt, label: "Mukadam · labourers" });
+  const kaam = jobs.open().map((id) => ({ ...jobs.spots().find((g) => g.id === id)!, label: GIVERS[id].name }));
   map.waypoint = guide.waypoint;
   map.show(game.save, clock(game.now()).day, { x: body.pos.x, z: body.pos.z, yaw: controls.yaw }, kaam, game.now());
   hud.setPlaying(true);
@@ -1654,8 +1637,6 @@ renderer.setAnimationLoop(() => {
     playground.update(dt, DAYTIME(h), camera.position);
     kabaddi.update(dt, h, body.pos, body.vel, camera.position);
     jobs.update(dt, now / 1000, h, camera.position, body.pos);
-    helpers.update(dt, h, camera.position);
-    helpers.group.visible = !titleScreen.open;
     // the kaam list waits until you know your way round (after Mission 1), and never covers a window
     jobs.hidden = mode !== "play" || titleScreen.open || !!farmyard.ride || windowOpen() || game.save.missions.i < 1;
     if (fishing.active && (farmyard.ride || mode !== "play" || !!ploughJob)) fishing.stop();
@@ -2026,7 +2007,6 @@ Promise.all([booted, workerReady]).then(async ([boot]) => {
     celebrate: () => celebrate(),
     fishPress: () => fishing.press(),
     jobs: () => ({ ...jobs.debug(), today: jobs.today() }),
-    helpers: () => ({ crew: helpers.debug(), mukadam: helpers.mukadamAt, hires: game.save.helpers ?? [] }),
     interact: () => controls.onInteract(),
     // for filming on a virtual clock: hold a key until told otherwise, and turn the view
     setHeld: (code: string, on: boolean) => (on ? controls.held.add(code) : controls.held.delete(code)),

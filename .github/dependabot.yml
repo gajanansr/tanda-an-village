@@ -5,6 +5,10 @@ updates:
     target-branch: develop
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
+    ignore:
+      # keep the types on the Node major we run on (CI uses Node 20); bump this by hand with the runtime
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
     groups:
       minor-and-patch:
         update-types: [minor, patch]

@@ -25,7 +25,8 @@ export function daySummary(save: Save, day: number): DaySummary {
     if (e.day !== day) continue;
     if (e.kind === "buy") costs += e.amount;
     if (e.kind !== "sell") continue;
-    if (e.item.startsWith("fish:")) {
+    if (e.item.startsWith("unhire:")) costs -= e.amount; // a labourer cancelled: the wage came back
+    else if (e.item.startsWith("fish:")) {
       income.fish += e.amount;
       sold += e.n;
     } else if (e.item.startsWith("job:")) income.kaam += e.amount;

@@ -78,15 +78,20 @@ export async function updateSave<R>(id: string, change: (s: ServerSave) => R | P
 
 export const displayName = (s: Save) => s.name?.trim() || `Farmer ${s.id.slice(0, 4).toUpperCase()}`;
 
+/** A farmer joins the leaderboard once they finish their first mission, so empty new farms don't crowd it. */
+export const onBoard = (s: Save) => !(s as ServerSave).devTouched && (s.missions?.i ?? 0) > 0;
+
 /** Put this farmer on the leaderboard (net worth, title, story progress). */
 export async function publish(s: Save) {
-  if ((s as ServerSave).devTouched) return store().boardRemove(s.id); // test farms with free money don't compete with real ones
+  if (!onBoard(s)) return store().boardRemove(s.id); // test farms with free money, and farms that haven't finished a mission
   const now = serverNow(s);
-  const worth = netWorth(world(), s, now, clock(now).day).total;
+  const w = netWorth(world(), s, now, clock(now).day);
+  const worth = w.total;
   await store().boardUpsert({
     id: s.id,
     name: displayName(s),
     worth,
+    parts: { cash: w.money, land: w.land, goods: w.goods + w.livestock, debt: w.debt },
     title: s.perks?.includes("sarpanch") ? "Sarpanch" : titleFor(worth).name,
     missions: s.missions?.i ?? 0,
     sarpanch: !!s.perks?.includes("sarpanch"),

@@ -104,11 +104,11 @@ supabase/     database schema
 
 ## Sending a change
 
-1. Fork, and create a branch from `develop`: `git checkout -b feat/cotton-crop develop`.
+1. Fork, and create a branch: `git checkout -b feat/cotton-crop`.
 2. Keep commits focused. Write messages in the imperative ("Add cotton crop with four growth stages").
-3. Open a PR into `develop` (not `main`) using the template. Describe what changed, how you tested it, and add screenshots.
+3. Open a PR into `main` using the template. Describe what changed, how you tested it, and add screenshots.
 4. A maintainer will review it. Small, focused PRs are merged fastest.
-5. `develop` deploys to a preview site for testing; a maintainer merges `develop` into `main` to release.
+5. Every PR gets its own Vercel preview link to try the change before it's merged.
 
 By contributing, you agree that your contribution is licensed under the [MIT License](LICENSE).
 

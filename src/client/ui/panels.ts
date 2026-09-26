@@ -1,6 +1,11 @@
 import { hoursText } from "../../shared/hours";
 import { CROP_IDS, CROPS, type CropId } from "../../shared/crops";
 import { buyerPrice, LEDGER_DAYS, news, SHOP } from "../../shared/economy";
+import { ganpatBonus, hearts, heartsText, NEIGHBOURS } from "../../shared/neighbours";
+import { COLLECT_EACH, dutyFor, DUTY_HONOUR, FRIEND_HEARTS, PANCH_VOTES, verdicts, WARD } from "../../shared/roles";
+import { deskOn } from "../../shared/panchayat";
+import { yearOf } from "../../shared/festivals";
+import { repBonus, roleNeeds, seedPrice } from "../../shared/rules";
 import { block } from "../../shared/blocks";
 import type { Action, Result } from "../../shared/rules";
 import type { Save } from "../../shared/save";
@@ -172,6 +177,8 @@ export class Panels {
     else if (what === "buyPlot") r = this.ctx.act({ t: "buyPlot", plot: Number(a) });
     else if (what === "delist") r = this.ctx.act({ t: "delist", plot: Number(a) });
     else if (what === "accept") r = this.ctx.act({ t: "acceptOffer", plot: Number(a), day: Number(b) });
+    else if (what === "role") r = this.ctx.act({ t: "role", what: a as "karbhari" | "panch" });
+    else if (what === "duty") r = this.ctx.act({ t: "duty", step: a as "take" | "choose" | "finish", choice: b });
     else if (what === "list") {
       const input = this.el.querySelector(`input[data-price="${a}"]`) as HTMLInputElement | null;
       r = this.ctx.act({ t: "listPlot", plot: Number(a), price: Math.round(Number(input?.value.replace(/[^0-9]/g, "")) || 0) });
@@ -203,7 +210,7 @@ export class Panels {
           ? [["loans", "Loans"], ["godown", "Godown"], ["worth", "Your worth"]]
           : this.open === "sahukar"
             ? [["loans", "Loans"]]
-        : this.open === "trader" ? [["sell", "Sell"], ["prices", "Prices"], ["ledger", "Ledger"]] : this.open === "land" ? [["plots", "Plots"], ["mine", "Your land"]] : [["buy", "Buy"], ["ledger", "Ledger"]];
+        : this.open === "trader" ? [["sell", "Sell"], ["prices", "Prices"], ["ledger", "Ledger"]] : this.open === "land" ? [["plots", "Plots"], ["mine", "Your land"], ["tanda", "Tanda duties"]] : [["buy", "Buy"], ["ledger", "Ledger"]];
     const who =
       this.open === "trader"
         ? `<h2>Ganpat Seth <small>village trader · व्यापारी</small></h2><p class="lede">"I pay fair, and I pay today. For more, you'd have to cart it to the town mandi."</p>`
@@ -225,7 +232,7 @@ export class Panels {
           ? `<h2>Naik Dhavlu's kacheri <small>the tanda's headman · नायक</small></h2><p class="lede">"Ram Ram! The tanda settled here for this black soil. Buy land near water, bhai — it feeds you every season."</p>`
           : `<h2>Sitabai's seeds &amp; tools <small>बी-बियाणे</small></h2><p class="lede">"Ram Ram! Good seed, good harvest. And my Khillari bulls pull a cart like our caravans of old."</p>`;
     const body =
-      this.open === "kamlabai" || this.open === "shankar" ? `<p class="hint">${current(s)?.id === "election" ? "Listen to both candidates, attend the gram sabha at the school, then decide." : "The election is over."}</p>` : this.tab === "offer" ? this.offer(s) : this.tab === "loans" ? this.loans(s, day, this.open === "bank" ? "bank" : "sahukar") : this.tab === "godown" ? this.godown(s) : this.tab === "worth" ? this.worth(s, day) : this.tab === "load" ? this.load(s, day) : this.tab === "mandi" || this.tab === "sold" ? this.mandi(s, day) : this.tab === "sell" ? this.sell(s, day) : this.tab === "prices" ? this.prices(day) : this.tab === "ledger" ? this.ledger(s, day) : this.tab === "plots" ? this.plots(s, day) : this.tab === "mine" ? this.mine(s, day) : this.buy(s);
+      this.open === "kamlabai" || this.open === "shankar" ? `<p class="hint">${current(s)?.id === "election" ? "Listen to both candidates, attend the gram sabha at the school, then decide." : "The election is over."}</p>` : this.tab === "offer" ? this.offer(s) : this.tab === "loans" ? this.loans(s, day, this.open === "bank" ? "bank" : "sahukar") : this.tab === "godown" ? this.godown(s) : this.tab === "worth" ? this.worth(s, day) : this.tab === "load" ? this.load(s, day) : this.tab === "mandi" || this.tab === "sold" ? this.mandi(s, day) : this.tab === "sell" ? this.sell(s, day) : this.tab === "prices" ? this.prices(day) : this.tab === "ledger" ? this.ledger(s, day) : this.tab === "plots" ? this.plots(s, day) : this.tab === "mine" ? this.mine(s, day) : this.tab === "tanda" ? this.tanda(s, day) : this.buy(s);
     // keep what the player is typing (and where the cursor is) across the redraw
     const keyOf = (i: HTMLInputElement) => [...i.attributes].filter((a) => a.name.startsWith("data-") && a.name !== "data-dirty").map((a) => `${a.name}=${a.value}`).join("&");
     const typed = new Map<string, string>();
@@ -257,7 +264,7 @@ export class Panels {
 
   /** Everything you could sell here right now, and what it would fetch (what Ganpat will pay, rep bonus and all). */
   private sellAllTotal(s: Save, day: number) {
-    const bonus = 1 + Math.min(0.1, (s.rep ?? 0) / 400);
+    const bonus = repBonus(s) * ganpatBonus(s); // your standing with the tanda, and with Ganpat himself
     let total = 0, n = 0;
     for (const c of CROP_IDS) if (s.inv[c]) {
       total += Math.round(buyerPrice(c, day, "village") * s.inv[c] * bonus);
@@ -482,6 +489,46 @@ export class Panels {
       <div class="big-acts"><button data-do="sellTown">Sell the load</button></div>`;
   }
 
+  /** The Naik's kacheri: becoming Karbhari, the day's duty, and standing for your ward. */
+  private tanda(s: Save, day: number) {
+    const name = (id: keyof typeof NEIGHBOURS) => NEIGHBOURS[id].name;
+    const needs = (miss: string[]) => (miss.length ? `<ul class="needs">${miss.map((m) => `<li>${m}</li>`).join("")}</ul>` : "");
+    const roles = s.roles ?? {};
+    const parts: string[] = [];
+    if (roles.karbhari === undefined) {
+      const miss = roleNeeds(s, "karbhari", day);
+      parts.push(`<h3>Karbhari · कारभारी</h3><p>"A tanda needs a Karbhari at the Naik's side — someone the people trust, to settle quarrels, carry word and gather what the tanda owes. When the tanda knows you, I'll ask you."</p>${needs(miss)}<div class="big-acts"><button data-do="role:karbhari" ${miss.length ? "disabled" : ""}>${miss.length ? "Not yet" : "Become the Naik's Karbhari"}</button></div>`);
+    } else {
+      const d = dutyFor(day), st = s.duty?.day === day ? s.duty : undefined;
+      let body: string;
+      if (st?.done) body = `<p class="empty">✓ Done for today — "Shabbas, Karbhari. Come back tomorrow."</p>`;
+      else if (d.kind === "quarrel")
+        body = `<p><b>A quarrel: ${d.about}.</b> ${d.ask}</p><div class="big-acts">${verdicts(d).map((v) => `<button data-do="duty:choose:${v.id}">${v.label}<small>${Object.entries(v.bonds).map(([id, n]) => `${name(id as never)} ${n > 0 ? "❤ +" : "💔 −"}${Math.abs(n)}`).join(" · ")}${v.rep ? ` · ★ +${v.rep}` : ""}</small></button>`).join("")}</div>`;
+      else if (d.kind === "message")
+        body = st?.step === "carrying" ? `<p>Take the Naik's word to <b>${name(d.to)}</b>: talk to them (E).</p>` : `<p>"${d.text}"</p><div class="big-acts"><button data-do="duty:take">Take the Naik's word</button></div>`;
+      else {
+        const got = st?.step === "collecting" ? st.got : [];
+        body =
+          st?.step !== "collecting"
+            ? `<p>"Go round ${d.from.map((id) => name(id)).join(", ")} for ${d.forWhat} — ₹${COLLECT_EACH} a house."</p><div class="big-acts"><button data-do="duty:take">Go round the houses</button></div>`
+            : `<p>For ${d.forWhat}: ${d.from.map((id) => `${got.includes(id) ? "✓" : "○"} ${name(id)}`).join(" · ")} <small>(talk to each)</small></p>${got.length === d.from.length ? `<div class="big-acts"><button data-do="duty:finish">Hand over ₹${COLLECT_EACH * d.from.length} to the Naik</button></div>` : ""}`;
+      }
+      parts.push(`<h3>Karbhari · today's duty <small>+₹${DUTY_HONOUR} and ★ when done</small></h3>${body}`);
+      if (roles.panch === undefined) {
+        const miss = roleNeeds(s, "panch", day);
+        parts.push(`<h3>Panch · पंच</h3><p>"The ward election is open. Your lane votes for you if they know you: ${PANCH_VOTES} of ${WARD.length} will do."</p><p>${WARD.map((id) => `${name(id)} <span class="hearts">${heartsText(hearts(s, id))}</span>${hearts(s, id) >= FRIEND_HEARTS ? " ✓" : ""}`).join(" · ")}</p>${needs(miss)}<div class="big-acts"><button data-do="role:panch" ${miss.length ? "disabled" : ""}>${miss.length ? "Not yet" : "Stand for ward member"}</button></div>`);
+      } else {
+        const sarpanch = s.perks.includes("sarpanch");
+        parts.push(
+          sarpanch
+            ? `<h3>Sarpanch</h3><p>Hear the tanda's three requests each day at your desk in front of Rathod Bhuvan, 9 am – 6 pm · fund ₹${deskOn(s.panchayat, day, yearOf).fund.toLocaleString("en-IN")}.</p>`
+            : `<h3>Panch of ward 2</h3><p>Your ward chose you. In the panchayat election, you can stand for Sarpanch.</p>`,
+        );
+      }
+    }
+    return `<div class="tanda-duties">${parts.join("")}</div>`;
+  }
+
   private plots(s: Save, day: number) {
     const w = this.ctx.world;
     const bar = (v: number) => `<span class="bar"><i style="width:${Math.round(v * 100)}%"></i></span>`;
@@ -547,7 +594,7 @@ export class Panels {
       const owned = one && have >= 1;
       const afford = (n: number) => (s.money >= i.price * n ? "" : "disabled");
       const icon = i.id === "drip" ? "💧" : i.id === "gerua" ? "🎨" : i.id === "bulls" ? "🐂" : i.id === "cart" ? "🛞" : i.id === "fodder" ? "🌾" : i.id === "plough" ? "⛏" : i.id.startsWith("block:") ? `<i class="dot sq" style="background:${blockColor(Number(i.id.slice(6)))}"></i>` : i.id.startsWith("seed:") ? `<i class="dot" style="background:${CROP_COLOR[i.id.slice(5) as CropId]}"></i>` : "🪣";
-      return `${head}<tr><td>${icon} ${i.name}${i.note ? `<br><small>${i.note}</small>` : ""}</td><td class="num">${one ? (owned ? "owned" : "—") : have}</td><td class="num">${i.id.startsWith("seed:") && s.perks.includes("discount") ? `<s>${rs(i.price)}</s> ${rs(i.price * 0.8)}` : rs(i.price)}</td>
+      return `${head}<tr><td>${icon} ${i.name}${i.note ? `<br><small>${i.note}</small>` : ""}</td><td class="num">${one ? (owned ? "owned" : "—") : have}</td><td class="num">${seedPrice(s, i.id) < 1 ? `<s>${rs(i.price)}</s> ${rs(Math.round(i.price * seedPrice(s, i.id)))}` : rs(i.price)}</td>
         <td class="acts">${owned ? "" : `<button data-do="buy" data-item="${i.id}" data-n="1" ${afford(1)}>Buy${one ? "" : " 1"}</button>`}${one ? "" : `<button data-do="buy" data-item="${i.id}" data-n="10" ${afford(10)}>10</button>`}</td></tr>`;
     }).join("");
     return `<table><thead><tr><th>Item</th><th class="num">You have</th><th class="num">Price</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;

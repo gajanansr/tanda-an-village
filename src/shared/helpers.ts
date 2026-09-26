@@ -1,13 +1,14 @@
 import { atHour, clock, DAY_MS } from "./time.js";
 
 /*
- * Majoor: labourers you hire by the day from Devidas Chavan, the mukadam. Hire today, and tomorrow
- * at 6 am they wait in the aangan by Rathod Bhuvan; tell them one job on one of your fields and
- * they stick to it until dusk. Their work is laid out on fixed time slots from the moment you give
+ * Majoor: labourers you hire by the day from Devidas Chavan, the mukadam. Hire in the morning and
+ * they walk straight over to the aangan by Rathod Bhuvan; hire later, and they're there at 6 am the
+ * next day. Tell them one job on one of your fields; when it runs out they sleep a while on a
+ * charpai by the field (experts need less), then take the next job, until dusk. Their work is laid out on fixed time slots from the moment you give
  * the order, so the server can recompute exactly what they did, however often it looks.
  */
 export type HelperId = "sakharam" | "parvati" | "vithoba";
-export type HelperJob = "plant" | "water" | "harvest";
+export type HelperJob = "plant" | "water" | "harvest" | "sell"; // sell: the cart to the town mandi, experts only
 
 export const MUKADAM = { name: "Devidas Chavan", local: "देविदास चव्हाण", title: "the mukadam" };
 
@@ -25,48 +26,61 @@ export const HIRE_MAX = 2; // labourers a day
 export const CANCEL_REFUND = 1; // share of the wage back if you cancel before they come (at 6 am)
 export const DUSK_HOUR = 19.5; // they go home at dusk
 export const ORDER_BY = 17; // after 5 pm it isn't worth starting
+export const SAME_DAY_BY = 12; // hired before noon, they come the same day
 /** Real ms in one game hour of daylight (hours run faster at night). */
 export const DAYLIGHT_HOUR_MS = atHour(0, 7) - atHour(0, 6);
 /** The walk from the aangan out to a field. */
 export const WALK_MS = DAYLIGHT_HOUR_MS;
 /** Real ms per patch for a labourer. */
 export const patchMs = (id: HelperId) => Math.round(DAYLIGHT_HOUR_MS / HELPERS[id].perHour);
+/** Real ms a labourer sleeps after finishing a job: a game hour, half that for an expert. */
+export const restMs = (id: HelperId) => Math.round(DAYLIGHT_HOUR_MS * (HELPERS[id].expert ? 0.5 : 1));
 
 /** A labourer you've hired for `day`; `job` once you've told them what to do. */
 export type Hire = {
   who: HelperId;
   day: number;
+  from?: number; // hired the same morning: when they reach your aangan (otherwise 6 am)
   job?: {
     kind: HelperJob;
     plot: number;
     crop?: string; // planting: the crop whose seeds you handed over
     seeds: number; // seeds still in their bag (back to you at dusk)
+    load?: Record<string, number>; // selling: the produce on the cart
+    sold?: number; // selling: what the mandi paid (once they get there)
     startAt: number; // when they reach the field and begin
     step: number; // time slots used so far (a slot with nothing to do is spent waiting)
     done: number; // patches actually worked
     at?: string; // the farm cell they worked last (where to draw them)
-    idle?: boolean; // nothing to do at the last slot: resting at the field's edge
+    doneAt?: number; // the work ran out: asleep by the field until doneAt + restMs, then ready for more
     full?: boolean; // the godown filled up; they stopped harvesting
     over?: boolean; // dusk has come and the day's work is settled
   };
 };
 
-/** The game day a hire made now is for: the coming morning. */
+/** The game day a hire made now is for: today until noon, then the coming morning. */
 export function hireDay(now: number) {
   const c = clock(now);
-  return c.hour < 6 ? c.day : c.day + 1;
+  return c.hour < SAME_DAY_BY ? c.day : c.day + 1;
 }
 export const duskOf = (day: number) => atHour(day, DUSK_HOUR);
 export const dawnOf = (day: number) => atHour(day, 6);
+/** When a labourer reaches your aangan: 6 am, or an hour after a same-morning hire. */
+export const arriveAt = (h: Hire) => h.from ?? dawnOf(h.day);
 
 /** What a labourer is up to right now, for drawing them and for the hint line. */
-export type HelperPhase = "booked" | "waiting" | "walking" | "working" | "resting" | "home";
+export type HelperPhase = "booked" | "waiting" | "walking" | "working" | "sleeping" | "resting" | "home";
 export function helperPhase(h: Hire, now: number): HelperPhase {
-  if (now < dawnOf(h.day)) return "booked";
+  if (now < arriveAt(h)) return "booked";
   if (now >= duskOf(h.day) || now >= dawnOf(h.day) + DAY_MS) return "home";
   if (!h.job) return "waiting";
   if (now < h.job.startAt) return "walking";
-  return h.job.idle || h.job.full || h.job.over ? "resting" : "working";
+  if (h.job.doneAt !== undefined) return now < h.job.doneAt + restMs(h.who) ? "sleeping" : "waiting";
+  return h.job.over ? "resting" : "working";
 }
 
-export const JOB_NAMES: Record<HelperJob, string> = { plant: "sow seeds", water: "water the field", harvest: "harvest the ripe crop" };
+export const JOB_NAMES: Record<HelperJob, string> = { plant: "sow seeds", water: "water the field", harvest: "harvest the ripe crop", sell: "take the cart to the Jalna mandi" };
+/** A mistry's run to the town mandi: when he gets there and sells, and when he's back with the cart. */
+export const sellTimes = (j: { startAt: number }, tripMs: number) => ({ sellAt: j.startAt + tripMs, backAt: j.startAt + 2 * tripMs });
+/** Is a labourer out on the road with your cart and bulls? */
+export const cartAway = (helpers: Hire[] | undefined) => !!helpers?.some((h) => h.job?.kind === "sell" && h.job.doneAt === undefined);

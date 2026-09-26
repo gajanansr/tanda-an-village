@@ -61,7 +61,12 @@ import { HowToCard } from "./ui/howto";
 import { cropName, isEnglish, LANG as LANG_CODE, t as tr } from "./i18n";
 import { SHOP_HOURS } from "../shared/hours";
 import { arrived, firstTime, metric } from "./metrics";
-import { HELPER_MIN_PLOTS } from "../shared/helpers";
+import { cartAway, HELPER_MIN_PLOTS } from "../shared/helpers";
+import { bondOf } from "../shared/neighbours";
+import { chat, greet, type TalkDeps } from "./neighbours";
+import { Festivals } from "./festivals";
+import { PanchayatDesk } from "./panchayat";
+import { FESTIVALS, festivalOn } from "../shared/festivals";
 
 type Hooks = {
   ready: boolean;
@@ -593,6 +598,8 @@ const jobs = new Jobs({
   closeDialogue: () => guide.onDialogue(false),
 });
 scene.add(jobs.group);
+/** Talking with neighbours outside the kaam (Dagdu mama, Ganpat, Sitabai): the day's Ram Ram and gifts. */
+const talkDeps: TalkDeps = { save: () => game.save, now: () => game.now(), act: (a) => game.act(a), toast: (m, k) => hud.toast(m, k), sound: (n) => audio.play(n), dialogue: (who, title, text, buttons) => guide.dialogue(who, title, text, buttons), closeDialogue: () => guide.onDialogue(false) };
 // ---- majoor: labourers from the mukadam's house, hired by the day ----
 const helpers = new Helpers({
   world,
@@ -607,6 +614,20 @@ const helpers = new Helpers({
   closeDialogue: () => guide.onDialogue(false),
 });
 scene.add(helpers.group);
+// ---- festivals every year: Dawali, Sevalal Jayanti, Holi ----
+const festivals = new Festivals({ world, nav, ground: (x, z) => hf.at(x, z), ...talkDeps });
+scene.add(festivals.group);
+let festHeralded = -1; // the day the festival was last announced
+// ---- the Sarpanch's desk in Rathod Bhuvan's aangan: sit, and the tanda comes to you ----
+const panchayat = new PanchayatDesk({
+  world,
+  nav,
+  ground: (x, z) => hf.at(x, z),
+  ...talkDeps,
+  dialogueOpen: () => guide.dialogueOpen,
+  sit: (at, face) => (seat = { kind: "desk", at, face }),
+});
+scene.add(panchayat.group);
 fixedBodies.push(...jobs.bodies(), ...helpers.bodies(), { pos: playground.dagduAt, r: 0.4, fixed: true });
 const kabaddi = new Kabaddi({
   ui: uiRoot,
@@ -633,7 +654,7 @@ const nearDagdu = () => Math.hypot(body.pos.x - playground.dagduAt.x, body.pos.z
 function pastimeHint(): string {
   if (kabaddi.active || fishing.active) return "";
   const h = nowHour();
-  const job = jobs.hint(body.pos, h) || helpers.hint(body.pos, h);
+  const job = jobs.hint(body.pos, h) || helpers.hint(body.pos, h) || festivals.hint(body.pos, h) || panchayat.hint(body.pos, h);
   if (job) return job;
   if (nearDagdu() && DAYTIME(h)) return `<kbd>E</kbd> ${tr("Talk to Dagdu mama, the old fisherman")}`;
   const nb = nearNeighbour();
@@ -653,9 +674,11 @@ function pastimeInteract(): boolean {
   }
   if (kabaddi.active) return true;
   const h = nowHour();
-  if (jobs.interact(body.pos, h) || helpers.interact(body.pos, h)) return true;
+  if (jobs.interact(body.pos, h) || helpers.interact(body.pos, h) || festivals.interact(body.pos, h) || panchayat.interact(body.pos, h)) return true;
   if (nearDagdu() && DAYTIME(h)) {
-    guide.dialogue("Dagdu mama · दगडू मामा", "The old fisherman", "Sit, sit. The talav fills from the tekdi every monsoon, and the fish come with it. Cast out past the lotus. When the float dips — strike! Then reel slowly: when the fish pulls hard, let it run, or your line will snap. They bite best at dawn and in the evening. And the maral… the maral you must earn.", [{ label: "Thank you, mama", onClick: () => guide.onDialogue(false) }]);
+    // the first time, he teaches you to fish; after that he's an old friend (or getting to be one)
+    const first = !bondOf(game.save, "dagdu").pts;
+    chat(talkDeps, "dagdu", first ? "The talav fills from the tekdi every monsoon, and the fish come with it. Cast out past the lotus. When the float dips — strike! Then reel slowly: when the fish pulls hard, let it run, or your line will snap. They bite best at dawn and in the evening. And the maral… the maral you must earn." : "");
     return true;
   }
   const nb = nearNeighbour();
@@ -779,8 +802,8 @@ farmyard.onArrive = (dest) => {
   if (dest === "town") openStall("town");
   else hud.toast("Home again. Sarja and Raja deserve some kadba.");
 };
-const nearCart = () => game.save.inv.cart && !farmyard.ride && farmyard.distTo(body.pos, farmyard.cartAt.x, farmyard.cartAt.z) < 3.6;
-const nearBulls = () => game.save.bulls && !farmyard.ride && farmyard.distTo(body.pos, farmyard.pos.x, farmyard.pos.z) < 4.5;
+const nearCart = () => game.save.inv.cart && !cartAway(game.save.helpers) && !farmyard.ride && farmyard.distTo(body.pos, farmyard.cartAt.x, farmyard.cartAt.z) < 3.6;
+const nearBulls = () => game.save.bulls && !cartAway(game.save.helpers) && !farmyard.ride && farmyard.distTo(body.pos, farmyard.pos.x, farmyard.pos.z) < 4.5;
 const cartInTown = () => farmyard.distTo(farmyard.cartAt, farmyard.town.x, farmyard.town.z) < 3;
 function cartAction() {
   if (!nearCart()) return false;
@@ -849,6 +872,7 @@ function cartHint(): string {
   }
   if (polaHere()) return `<kbd>E</kbd> ${tr("Lead Sarja & Raja in the Pola procession")}`;
   if (isNight(nowHour()) && nearHome()) return `<kbd>E</kbd> ${tr("Go home and sleep till morning")}`;
+  if (seat?.kind === "desk") return panchayat.hint(body.pos, nowHour());
   if (seat) return seat.climb ? "" : seat.kind === "tank" ? tr("Move to climb down") : tr("Move to stand up") + (game.save.friendsDay === clock(game.now()).day ? ` <small class="hours">${tr("· tonight's chai ✓")}</small>` : "");
   if (Nights.evening(nowHour()) && nearFire()) return game.save.friendsDay === clock(game.now()).day ? `<kbd>E</kbd> ${tr("Sit by the fire again")} <small class="hours">${tr("· tonight's chai ✓")}</small>` : `<kbd>E</kbd> ${tr("Sit with your friends by the fire")}`;
   if (nearLadder()) return `<kbd>E</kbd> ${tr("Climb the tanki")}`;
@@ -906,7 +930,7 @@ function checkPlotEntry() {
  * Sitting down: in the circle round the evening fire, or up on the tanki's roof. While seated the
  * farmer doesn't walk; moving (or E) stands you up — from the tanki you climb back down.
  */
-type Seat = { kind: "fire" | "tank"; at: { x: number; y: number; z: number }; face: number; climb?: { from: THREE.Vector3; to: THREE.Vector3; t: number; dur: number; then: "sit" | "stand" } };
+type Seat = { kind: "fire" | "tank" | "desk"; at: { x: number; y: number; z: number }; face: number; climb?: { from: THREE.Vector3; to: THREE.Vector3; t: number; dur: number; then: "sit" | "stand" } };
 let seat: Seat | null = null;
 const TANK = (() => {
   const s = world.structures.find((x) => x.kind === "tank") as { x: number; z: number; y: number } | undefined;
@@ -1007,6 +1031,7 @@ const TALK: Partial<Record<PanelKind, string>> = { land: "naik", trader: "ganpat
 function openStall(kind: PanelKind, tab?: string) {
   const who = TALK[kind];
   if (who && booted_) game.act({ t: "talk", npc: who });
+  if (booted_ && (kind === "trader" || kind === "shop")) greet(talkDeps, kind === "trader" ? "ganpat" : "sitabai"); // they remember a regular
   closeWindows();
   panels.show(kind, tab);
   hud.setPlaying(true); // hide the click-to-play panel under it
@@ -1257,7 +1282,13 @@ function refreshStatus() {
   // "saved" only speaks up while saving or when the server can't be reached
   const sync = net.status === "saved" ? "" : `<span class="sync ${net.status}">${tr(net.status === "saving" ? "saving…" : "offline — retrying")}</span>`;
   const h = hourOverride ?? c.hour;
-  hud.setInfo(`${s.perks.includes("sarpanch") ? `<span class="title">${tr("Sarpanch")}</span>` : ""}<span class="title" title="Net worth ₹${worth.total.toLocaleString("en-IN")}">${tr(title.name)}</span><span class="money">₹${s.money.toLocaleString("en-IN")}</span>${s.rep ? `<span class="rep" title="Reputation with the tanda: better prices from Ganpat">★ ${s.rep}</span>` : ""}${overdue ? `<span class="debt">${tr("loan overdue!")}</span>` : ""}${sync}${TOUCH && carriedNow(s) ? `<span class="basket" title="What you're carrying">🧺 ${carriedNow(s)}</span>` : ""}<span class="clock" title="${SEASON_NAMES[c.season]} · day ${c.dayOfSeason + 1} of ${SEASON_DAYS}">${sunDial(h)}${fmtHour(h)}</span><span class="season">${tr(SEASON_NAMES[c.season].split(" · ")[0])} · ${c.dayOfSeason + 1}/${SEASON_DAYS}</span>`);
+  const fest = festivalOn(c.day);
+  if (fest && booted_ && festHeralded !== c.day) {
+    festHeralded = c.day;
+    hud.toast(`${FESTIVALS[fest].icon} ${FESTIVALS[fest].name} today in Ukhali! ${FESTIVALS[fest].about}`);
+    audio.play("templebell");
+  }
+  hud.setInfo(`${fest ? `<span class="fest" title="${FESTIVALS[fest].about}">${FESTIVALS[fest].icon} ${FESTIVALS[fest].name}</span>` : ""}${s.perks.includes("sarpanch") ? `<span class="title">${tr("Sarpanch")}</span>` : s.roles?.panch !== undefined ? `<span class="title" title="Ward member of the gram panchayat">Panch</span>` : s.roles?.karbhari !== undefined ? `<span class="title" title="Naik Dhavlu's Karbhari">Karbhari</span>` : ""}<span class="title" title="Net worth ₹${worth.total.toLocaleString("en-IN")}">${tr(title.name)}</span><span class="money">₹${s.money.toLocaleString("en-IN")}</span>${s.rep ? `<span class="rep" title="Reputation with the tanda: better prices from Ganpat">★ ${s.rep}</span>` : ""}${overdue ? `<span class="debt">${tr("loan overdue!")}</span>` : ""}${sync}${TOUCH && carriedNow(s) ? `<span class="basket" title="What you're carrying">🧺 ${carriedNow(s)}</span>` : ""}<span class="clock" title="${SEASON_NAMES[c.season]} · day ${c.dayOfSeason + 1} of ${SEASON_DAYS}">${sunDial(h)}${fmtHour(h)}</span><span class="season">${tr(SEASON_NAMES[c.season].split(" · ")[0])} · ${c.dayOfSeason + 1}/${SEASON_DAYS}</span>`);
 }
 /** Produce and fish in hand (phones show this in the info chip; the counts chip is too wide for them). */
 const carriedNow = (s: typeof game.save) => Object.entries(s.inv).reduce((a, [k, n]) => a + (CROPS[k as keyof typeof CROPS] || k.startsWith("fish:") ? n : 0), 0);
@@ -1436,7 +1467,7 @@ controls.onInteract = () => {
   if (kabaddi.active) return;
   const h = nowHour();
   if (isNight(h) && nearHome() && !nearStall()) return void goHomeToSleep();
-  if (seat) return standUp();
+  if (seat) return seat.kind === "desk" && panchayat.press() ? undefined : standUp(); // at the desk, E hears whoever's waiting
   if (nearLadder() && !nearStall()) return climbTank();
   if (Nights.evening(h) && nearFire() && !nearStall()) {
     const again = game.save.friendsDay === clock(game.now()).day;
@@ -1592,10 +1623,12 @@ renderer.setAnimationLoop(() => {
   if (frameTimes.length > 240) frameTimes.shift();
   last = now;
   farmyard.set(!!game.save.bulls, !!game.save.inv.cart);
+  farmyard.mistryAt = helpers.cartRun(); // the mistry driving the cart to the mandi and back
   const tb = game.save.bulls?.tied;
   farmyard.tiedAt = tb && !ploughJob ? { x: nights.home.yard.x + Math.sin(nights.home.yardFace) * 1.0, z: nights.home.yard.z + Math.cos(nights.home.yardFace) * 1.0, heading: nights.home.yardFace + Math.PI } : null;
   nights.setGotha(!!game.save.inv.gotha);
   farmyard.update(dt, body.pos);
+  helpers.seat = farmyard.mistryAt !== null ? { ...farmyard.seat(), heading: farmyard.pos.heading } : null;
   if (farmyard.ride) {
     // on the cart: the road does the walking, you look around — and your view turns with the cart
     controls.yaw += Math.atan2(Math.sin(farmyard.pos.heading - rideHeading), Math.cos(farmyard.pos.heading - rideHeading));
@@ -1774,6 +1807,9 @@ renderer.setAnimationLoop(() => {
     kabaddi.update(dt, h, body.pos, body.vel, camera.position);
     jobs.update(dt, now / 1000, h, camera.position, body.pos);
     helpers.update(dt, h, camera.position);
+    festivals.update(dt, h);
+    panchayat.seated = seat?.kind === "desk";
+    panchayat.update(dt, h, camera.position);
     helpers.group.visible = !titleScreen.open;
     // the kaam list waits until you know your way round (after Mission 1), and never covers a window
     jobs.hidden = mode !== "play" || titleScreen.open || !!farmyard.ride || windowOpen() || game.save.missions.i < 1;
@@ -2054,8 +2090,8 @@ Promise.all([booted, workerReady]).then(async ([boot]) => {
             await worldRenderer.flush();
             return game.skew;
           },
-          jumpMission: async (i: number, rep: number) => {
-            await net.skip(0, 0, { mission: i, rep });
+          jumpMission: async (i: number, rep: number, panch = 0) => {
+            await net.skip(0, 0, { mission: i, rep, panch });
             refreshStatus();
           },
           grant: async (money: number) => {

@@ -1,4 +1,4 @@
-import { authed, displayName, json, loadSave, publish, serverNow } from "./_lib/game.js";
+import { authed, displayName, json, loadSave, onBoard, publish, serverNow } from "./_lib/game.js";
 import { store } from "./_lib/store.js";
 import { netWorth } from "../src/shared/bank.js";
 import { clock } from "../src/shared/time.js";
@@ -26,7 +26,7 @@ export async function GET(req: Request): Promise<Response> {
   const list = live.filter((e): e is NonNullable<typeof e> => e !== null).sort((a, b) => b.worth - a.worth || a.updatedAt - b.updatedAt);
   // equal net worth shares a rank (1, 2, 2, 4…), matching "how many are worth more than you"
   const top = list.map((e, i) => ({ rank: list.findIndex((x) => x.worth === e.worth) + 1 || i + 1, name: e.name, worth: e.worth, parts: e.parts, title: e.title, missions: e.missions, sarpanch: e.sarpanch, you: false, id: e.id }));
-  let me: { rank: number; total: number; name: string; worth: number; parts: Parts; title: string; missions: number } | undefined;
+  let me: { rank: number; total: number; name: string; worth: number; parts: Parts; title: string; missions: number; unlisted?: boolean } | undefined;
   const id = await authed(req);
   if (id) {
     const save = await loadSave(id);
@@ -36,7 +36,7 @@ export async function GET(req: Request): Promise<Response> {
       const w = netWorth(world(), save, now, clock(now).day);
       const worth = w.total;
       const { above, total } = await s.boardRank(worth);
-      me = { rank: above + 1, total, name: displayName(save), worth, parts: { cash: w.money, land: w.land, goods: w.goods + w.livestock, debt: w.debt }, title: "", missions: save.missions?.i ?? 0 };
+      me = { rank: above + 1, total, name: displayName(save), worth, parts: { cash: w.money, land: w.land, goods: w.goods + w.livestock, debt: w.debt }, title: "", missions: save.missions?.i ?? 0, ...(onBoard(save) ? {} : { unlisted: true }) };
       for (const t of top) t.you = t.id === id;
     }
   }

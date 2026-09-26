@@ -13,7 +13,7 @@ create table if not exists public.kv (
   updated_at timestamptz not null default now()
 );
 
--- The public leaderboard: one row per farmer, updated after every accepted move.
+-- The public leaderboard: one row per farmer who has finished a mission, updated after every accepted move.
 create table if not exists public.leaderboard (
   player_id  text primary key,
   name       text not null,

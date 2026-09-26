@@ -117,6 +117,10 @@ describe("two devices and the leaderboard", () => {
     const id2 = (await authed(get(p2.token)))!;
     await updateSave(id2, (s) => void (s.money += 50000));
     await act(post({ actions: [{ t: "setName", name: "Sitaram" }] }, p2.token));
+    // only farmers who have finished a mission are on the board
+    for (const p of [p1, p2]) await updateSave((await authed(get(p.token)))!, (s) => void (s.missions.i = 1));
+    const p4 = await newPlayer();
+    await act(post({ actions: [{ t: "setName", name: "Newcomer" }] }, p4.token));
     // a test farm that used the dev tools (free money, time skips) is kept off the board
     const p3 = await newPlayer();
     await dev(post({ money: 900000 }, p3.token));
@@ -126,5 +130,9 @@ describe("two devices and the leaderboard", () => {
     expect(r.me).toMatchObject({ rank: 2, total: 2, name: "गजानन" });
     expect(r.top[1].you).toBe(true);
     expect(JSON.stringify(r)).not.toMatch(/token|recovery|[a-f0-9]{16}/); // no ids or secrets leak
+    const fresh = await (await board(get(p4.token))).json();
+    expect(fresh.top).toHaveLength(2);
+    expect(fresh.me).toMatchObject({ unlisted: true, name: "Newcomer" });
+    expect(r.me.unlisted).toBeUndefined();
   });
 });

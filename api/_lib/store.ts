@@ -7,10 +7,13 @@
  * Saves are versioned: every write says which `rev` it read, and fails if someone else wrote in
  * between (two devices playing at once). The caller reloads and replays — see updateSave().
  */
+/** What a farmer's wealth is made of, as shown on the board. */
+export type Parts = { cash: number; land: number; goods: number; debt: number };
 export type BoardEntry = {
   id: string;
   name: string;
   worth: number;
+  parts?: Parts | null; // null on rows written before the breakdown was stored
   title: string;
   missions: number; // missions completed
   sarpanch: boolean;
@@ -86,7 +89,7 @@ export class SupabaseStore implements Store {
     return ((await r.json()) as unknown[]).length === 1;
   }
   async boardUpsert(e: BoardEntry) {
-    const row = { player_id: e.id, name: e.name, net_worth: Math.round(e.worth), title: e.title, missions: e.missions, sarpanch: e.sarpanch, updated_at: new Date(e.updatedAt).toISOString() };
+    const row = { player_id: e.id, name: e.name, net_worth: Math.round(e.worth), parts: e.parts ?? null, title: e.title, missions: e.missions, sarpanch: e.sarpanch, updated_at: new Date(e.updatedAt).toISOString() };
     await this.ok(await this.req("leaderboard?on_conflict=player_id", { method: "POST", prefer: "resolution=merge-duplicates,return=minimal", body: JSON.stringify(row) }), "board");
   }
   async boardRemove(id: string) {
@@ -94,8 +97,8 @@ export class SupabaseStore implements Store {
   }
   async boardTop(n: number) {
     const r = await this.ok(await this.req(`leaderboard?select=*&order=net_worth.desc,updated_at.asc&limit=${Math.min(100, n)}`), "top");
-    const rows = (await r.json()) as { player_id: string; name: string; net_worth: number; title: string; missions: number; sarpanch: boolean; updated_at: string }[];
-    return rows.map((x) => ({ id: x.player_id, name: x.name, worth: Number(x.net_worth), title: x.title, missions: x.missions, sarpanch: x.sarpanch, updatedAt: Date.parse(x.updated_at) }));
+    const rows = (await r.json()) as { player_id: string; name: string; net_worth: number; parts?: Parts | null; title: string; missions: number; sarpanch: boolean; updated_at: string }[];
+    return rows.map((x) => ({ id: x.player_id, name: x.name, worth: Number(x.net_worth), parts: x.parts ?? null, title: x.title, missions: x.missions, sarpanch: x.sarpanch, updatedAt: Date.parse(x.updated_at) }));
   }
   async boardRank(worth: number) {
     const count = async (filter: string) => {
@@ -103,7 +106,8 @@ export class SupabaseStore implements Store {
       const m = (r.headers.get("content-range") ?? "").match(/\/(\d+)$/);
       return m ? Number(m[1]) : 0;
     };
-    return { above: await count(`&net_worth=gt.${Math.round(worth)}`), total: await count("") };
+    const [above, total] = await Promise.all([count(`&net_worth=gt.${Math.round(worth)}`), count("")]);
+    return { above, total };
   }
 }
 

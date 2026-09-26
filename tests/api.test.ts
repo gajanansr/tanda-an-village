@@ -129,6 +129,7 @@ describe("two devices and the leaderboard", () => {
     expect(r.top.map((x: { name: string }) => x.name)).toEqual(["Sitaram", "गजानन"]);
     expect(r.me).toMatchObject({ rank: 2, total: 2, name: "गजानन" });
     expect(r.top[1].you).toBe(true);
+    expect(r.top[0].parts).toMatchObject({ cash: 51000, debt: 0 }); // the breakdown comes from the board, not the save
     expect(JSON.stringify(r)).not.toMatch(/token|recovery|[a-f0-9]{16}/); // no ids or secrets leak
     const fresh = await (await board(get(p4.token))).json();
     expect(fresh.top).toHaveLength(2);

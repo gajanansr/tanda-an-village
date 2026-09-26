@@ -18,11 +18,13 @@ create table if not exists public.leaderboard (
   player_id  text primary key,
   name       text not null,
   net_worth  bigint not null default 0,
+  parts      jsonb,                              -- what the net worth is made of: cash, land, goods, debt
   title      text not null default 'Small farmer',
   missions   int not null default 0,
   sarpanch   boolean not null default false,
   updated_at timestamptz not null default now()
 );
+alter table public.leaderboard add column if not exists parts jsonb; -- (tables made before it existed)
 create index if not exists leaderboard_worth on public.leaderboard (net_worth desc, updated_at asc);
 
 -- keep kv.updated_at honest

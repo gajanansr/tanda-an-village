@@ -85,11 +85,13 @@ export const onBoard = (s: Save) => !(s as ServerSave).devTouched && (s.missions
 export async function publish(s: Save) {
   if (!onBoard(s)) return store().boardRemove(s.id); // test farms with free money, and farms that haven't finished a mission
   const now = serverNow(s);
-  const worth = netWorth(world(), s, now, clock(now).day).total;
+  const w = netWorth(world(), s, now, clock(now).day);
+  const worth = w.total;
   await store().boardUpsert({
     id: s.id,
     name: displayName(s),
     worth,
+    parts: { cash: w.money, land: w.land, goods: w.goods + w.livestock, debt: w.debt },
     title: s.perks?.includes("sarpanch") ? "Sarpanch" : titleFor(worth).name,
     missions: s.missions?.i ?? 0,
     sarpanch: !!s.perks?.includes("sarpanch"),

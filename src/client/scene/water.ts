@@ -60,21 +60,25 @@ export class Water {
           // ripples: two drifting noise fields make a gently moving normal
           vec2 p = vWorld.xz;
           float e = 0.15;
-          float h0 = bgFbm(p * 0.45 + vec2(uTime * 0.12, uTime * 0.05)) + 0.5 * bgNoise(p * 1.7 - uTime * 0.3);
-          float hx = bgFbm((p + vec2(e, 0.0)) * 0.45 + vec2(uTime * 0.12, uTime * 0.05)) + 0.5 * bgNoise((p + vec2(e, 0.0)) * 1.7 - uTime * 0.3);
-          float hz = bgFbm((p + vec2(0.0, e)) * 0.45 + vec2(uTime * 0.12, uTime * 0.05)) + 0.5 * bgNoise((p + vec2(0.0, e)) * 1.7 - uTime * 0.3);
-          vec3 n = normalize(vec3((h0 - hx) * 0.7, 1.0, (h0 - hz) * 0.7));
+          float h0 = bgFbm(p * 0.45 + vec2(uTime * 0.12, uTime * 0.05)) + 0.5 * bgNoise(p * 1.7 - uTime * 0.3) + 0.25 * bgNoise(p * 5.0 + uTime * 0.5);
+          float hx = bgFbm((p + vec2(e, 0.0)) * 0.45 + vec2(uTime * 0.12, uTime * 0.05)) + 0.5 * bgNoise((p + vec2(e, 0.0)) * 1.7 - uTime * 0.3) + 0.25 * bgNoise((p + vec2(e, 0.0)) * 5.0 + uTime * 0.5);
+          float hz = bgFbm((p + vec2(0.0, e)) * 0.45 + vec2(uTime * 0.12, uTime * 0.05)) + 0.5 * bgNoise((p + vec2(0.0, e)) * 1.7 - uTime * 0.3) + 0.25 * bgNoise((p + vec2(0.0, e)) * 5.0 + uTime * 0.5);
+          vec3 n = normalize(vec3((h0 - hx) * 0.35, 1.0, (h0 - hz) * 0.35));
           vec3 v = normalize(cameraPosition - vWorld);
           float fres = pow(1.0 - max(dot(n, v), 0.0), 3.0);
-          vec3 shallow = vec3(0.42, 0.6, 0.52), deep = vec3(0.11, 0.3, 0.33);
-          vec3 body = mix(shallow, deep, smoothstep(0.1, 2.6, depth));
-          vec3 refl = mix(uHorizon, uSky, clamp(reflect(-v, n).y * 2.0, 0.0, 1.0));
-          vec3 col = mix(body, refl, 0.15 + 0.7 * fres);
-          float spec = pow(max(dot(reflect(-normalize(uSunDir), n), v), 0.0), 60.0);
-          col += uSunColor * spec * 0.35;
+          // Deccan water is murky: silty olive in the shallows, dark green-brown in the channel
+          vec3 shallow = vec3(0.22, 0.25, 0.16), deep = vec3(0.05, 0.11, 0.09);
+          vec3 body = mix(shallow, deep, smoothstep(0.05, 1.8, depth));
+          body *= 0.55 + 0.45 * max(uSunDir.y, 0.0) + 0.1; // the water's own colour follows the daylight
+          // the sky reflects mostly at low angles; near the banks the reflection is of earth and reeds
+          vec3 refl = mix(uHorizon, uSky, clamp(reflect(-v, n).y * 2.0, 0.0, 1.0)) * 0.85;
+          refl = mix(refl, vec3(0.22, 0.24, 0.15) * (0.4 + 0.6 * max(uSunDir.y, 0.0)), 1.0 - smoothstep(0.15, 1.2, depth));
+          vec3 col = mix(body, refl, 0.04 + 0.8 * fres);
+          float spec = pow(max(dot(reflect(-normalize(uSunDir), n), v), 0.0), 220.0);
+          col += uSunColor * spec * 1.2; // small, sharp sun glints
           // a pale line where the water meets the bank
-          col = mix(col, vec3(0.85, 0.86, 0.78), (1.0 - smoothstep(0.02, 0.22, depth)) * 0.5);
-          float alpha = mix(0.55, 0.92, smoothstep(0.05, 1.2, depth));
+          col = mix(col, vec3(0.62, 0.6, 0.5), (1.0 - smoothstep(0.02, 0.1, depth)) * 0.2); // a wet line where it meets the bank
+          float alpha = mix(0.8, 0.97, smoothstep(0.05, 0.9, depth)); // silty: you only just see the bottom at the edge
           gl_FragColor = vec4(col, alpha);
           #include <fog_fragment>
         }`,

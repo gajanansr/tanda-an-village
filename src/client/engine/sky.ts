@@ -15,8 +15,8 @@ const KEYS: Key[] = [
   { h: 8.5, top: "#5f97d0", horizon: "#e8d8c0", sun: "#fff0d8", sunI: 0.95, hemiSky: "#e0ecf4", hemiGround: "#6a5a44", hemiI: 0.95, cloud: "#fbf4ea" },
   { h: 12, top: "#3f82d0", horizon: "#d6e6f0", sun: "#fffaf0", sunI: 1.05, hemiSky: "#eef4fa", hemiGround: "#6f604a", hemiI: 1.0, cloud: "#ffffff" },
   { h: 16, top: "#4f86cc", horizon: "#f0dcb8", sun: "#fff0d0", sunI: 0.95, hemiSky: "#eaeef2", hemiGround: "#6f5e46", hemiI: 0.95, cloud: "#fff6ea" },
-  { h: 17.6, top: "#6f86c4", horizon: "#f2c49a", sun: "#ffc27a", sunI: 0.9, hemiSky: "#ecd6c6", hemiGround: "#6a4e38", hemiI: 0.9, cloud: "#ffe0bc" },
-  { h: 18.5, top: "#4a4e92", horizon: "#e89a70", sun: "#ff9a5c", sunI: 0.55, hemiSky: "#c09cb0", hemiGround: "#4a3432", hemiI: 0.7, cloud: "#eab0a0" },
+  { h: 17.6, top: "#6f86c4", horizon: "#f2c49a", sun: "#ffc27a", sunI: 0.9, hemiSky: "#f0dccb", hemiGround: "#7a5a40", hemiI: 1.0, cloud: "#ffe0bc" },
+  { h: 18.5, top: "#4a4e92", horizon: "#e89a70", sun: "#ff9a5c", sunI: 0.55, hemiSky: "#d0a8a8", hemiGround: "#5a3e34", hemiI: 0.8, cloud: "#eab0a0" },
   { h: 19.6, top: "#161c40", horizon: "#4a3558", sun: "#8070a0", sunI: 0.0, hemiSky: "#6a6aa0", hemiGround: "#22202a", hemiI: 0.42, cloud: "#40385a" },
   { h: 24, top: "#0a0f24", horizon: "#1b2240", sun: "#8090c0", sunI: 0.0, hemiSky: "#5a6aa0", hemiGround: "#1a1a24", hemiI: 0.35, cloud: "#2a3050" },
 ];
@@ -156,7 +156,8 @@ export class Sky {
     this.hemi.groundColor.copy(s.hemiGround);
     this.hemi.intensity = s.hemiI * 0.95;
     this.sun.color.copy(s.sun);
-    this.sun.intensity = Math.max(0, s.sunI) * 3.4 * Math.max(0, Math.min(1, dir.y * 4));
+    // the low sun keeps lighting the land until it's on the horizon (golden hour), then fades fast
+    this.sun.intensity = Math.max(0, s.sunI) * 3.4 * Math.max(0, Math.min(1, (dir.y + 0.015) * 9));
     (this.scene.fog as THREE.Fog).color.copy(s.horizon);
     this.dome.position.copy(focus);
     for (const m of this.cloudMats) m.color.copy(s.cloud);

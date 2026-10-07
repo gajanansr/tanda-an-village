@@ -14,9 +14,18 @@ export function mergeParts(root: THREE.Object3D) {
   const groups: THREE.Object3D[] = [];
   root.traverse((o) => groups.push(o));
   for (const g of groups) {
-    const meshes = g.children.filter(
+    const all = g.children.filter(
       (c): c is THREE.Mesh => c instanceof THREE.Mesh && c.material instanceof THREE.MeshStandardMaterial && !c.material.map && !c.material.vertexColors && c.material.side === THREE.FrontSide,
     );
+    // parts are merged per kind of surface (a material's userData.mergeKey, e.g. skin or cloth),
+    // so each kind keeps its own shading instead of all becoming one plain material
+    const kinds = new Map<string, THREE.Mesh[]>();
+    for (const m of all) {
+      const key = (m.material as THREE.Material).userData.mergeKey ?? "plain";
+      if (!kinds.has(key)) kinds.set(key, []);
+      kinds.get(key)!.push(m);
+    }
+    for (const [key, meshes] of kinds) {
     if (meshes.length < 2) continue;
     const parts = meshes.map((m) => {
       m.updateMatrix();
@@ -32,11 +41,27 @@ export function mergeParts(root: THREE.Object3D) {
     const merged = mergeGeometries(parts);
     if (!merged) continue;
     for (const m of meshes) g.remove(m);
-    const mesh = new THREE.Mesh(merged, sharedStd);
+    const mesh = new THREE.Mesh(merged, kindMaterial(key, meshes[0].material as THREE.MeshStandardMaterial));
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     g.add(mesh);
+    }
   }
+}
+
+/** One shared vertex-coloured material per surface kind, copying that kind's shading. */
+const kindMats = new Map<string, THREE.MeshStandardMaterial>();
+function kindMaterial(key: string, like: THREE.MeshStandardMaterial) {
+  if (key === "plain") return sharedStd;
+  if (!kindMats.has(key)) {
+    const m = like.clone();
+    m.color.set(0xffffff);
+    m.vertexColors = true;
+    m.onBeforeCompile = like.onBeforeCompile; // (clone doesn't carry shader tweaks)
+    m.customProgramCacheKey = () => "merged-" + key;
+    kindMats.set(key, m);
+  }
+  return kindMats.get(key)!;
 }
 
 export function mergeBoxes(root: THREE.Object3D) {
@@ -55,9 +80,11 @@ export function mergeBoxes(root: THREE.Object3D) {
       const c = new Float32Array(n * 3);
       for (let i = 0; i < n; i++) c.set([col.r, col.g, col.b], i * 3);
       geo.setAttribute("color", new THREE.BufferAttribute(c, 3));
-      for (const k of Object.keys(geo.attributes)) if (!["position", "normal", "color"].includes(k)) geo.deleteAttribute(k);
+      for (const k of Object.keys(geo.attributes)) if (!["position", "normal", "color", "uv"].includes(k)) geo.deleteAttribute(k);
       return geo;
     });
+    // keep uvs (a cloth's weave needs them) only if every part has them
+    if (!parts.every((p) => p.getAttribute("uv"))) parts.forEach((p) => p.deleteAttribute("uv"));
     const merged = mergeGeometries(parts);
     if (!merged) continue;
     for (const m of meshes) {

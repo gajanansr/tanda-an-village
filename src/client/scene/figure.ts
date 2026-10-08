@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { mergeParts } from "../engine/merge";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { type Kind, loadPerson, Person, REALISTIC } from "./people";
 
 /*
@@ -164,6 +165,139 @@ function odhniGeometry() {
 const lathe = (pts: [number, number][], seg = 18) =>
   new THREE.LatheGeometry((pts[0][1] > pts[pts.length - 1][1] ? [...pts].reverse() : pts).map(([r, y]) => new THREE.Vector2(r, y)), seg);
 
+/**
+ * Dress a realistic person the way this village's people dress (the same Look the modelled figures
+ * use): men in a dyed kurta with a pheta or Gandhi topi and a moustache; women in the Banjara mirror-work
+ * ghaghra, kanchali, coin-edged odhni and arms of bangles, with a bindi; the farmer with his red checked
+ * gamcha, the Banjara bag and a steel kada. Everything hangs on the skeleton, so it moves with them.
+ */
+/** Light brown to fair complexions, as in the tanda; the avatars' own skin is much darker, so it's lifted. */
+const COMPLEXIONS = ["#a46c48", "#b47b56", "#96603f", "#c18a64"]; // light brown to fair (sRGB)
+function dress(p: Person, look: Look) {
+  const tone = new THREE.Color(COMPLEXIONS[Math.floor(Math.random() * COMPLEXIONS.length)]);
+  const V = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+  const mesh = (g: THREE.BufferGeometry, m: THREE.Material) => { const o = new THREE.Mesh(g, m); o.castShadow = true; return o; };
+  const plain = (c: string, rough = 0.85) => new THREE.MeshStandardMaterial({ color: c, roughness: rough });
+  const head = p.restPos("Bip01_Head");
+  // along a forearm in the standing pose (elbow to wrist), for bangles and the kada
+  const forearm = (side: "L" | "R", t: number) => {
+    const a = p.restPos(`Bip01_${side}_Forearm`), b = p.restPos(`Bip01_${side}_Hand`);
+    return { at: a.clone().lerp(b, t), dir: b.clone().sub(a).normalize() };
+  };
+  const bangle = (side: "L" | "R", t: number, r: number, color: string, tube = 0.006) => {
+    const { at, dir } = forearm(side, t);
+    const o = mesh(new THREE.TorusGeometry(r, tube, 6, 18), plain(color, 0.4));
+    o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
+    p.attach(`Bip01_${side}_Forearm`, o, at);
+  };
+  /** A stack of bangles up a forearm as one mesh (two materials: bone white and red). */
+  const bangles = (side: "L" | "R") => {
+    const { at: a0, dir } = forearm(side, 0.25);
+    const geos: THREE.BufferGeometry[] = [];
+    for (let i = 0; i < 9; i++) {
+      const g = new THREE.TorusGeometry(0.046 - i * 0.0012, 0.006, 6, 18).translate(0, 0, i * 0.075 * p.restPos(`Bip01_${side}_Forearm`).distanceTo(p.restPos(`Bip01_${side}_Hand`)));
+      g.clearGroups();
+      g.addGroup(0, Infinity, i % 4 === 3 ? 1 : 0);
+      geos.push(g);
+    }
+    const o = mesh(mergeGeometries(geos, true)!, [plain("#eee6d2", 0.4), plain("#b8322a", 0.4)] as unknown as THREE.Material);
+    o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
+    p.attach(`Bip01_${side}_Forearm`, o, a0);
+  };
+  if (look.woman) {
+    p.skin(/head|body/, tone);
+    // the ghaghra: a full skirt from the waist to the ankles, embroidered at the hem
+    const hips = p.restPos("Bip01_Pelvis");
+    const skirt = mesh(lathe([[0.001, -hips.y + 0.04], [0.4, -hips.y + 0.04], [0.39, -hips.y + 0.08], [0.3, -0.5], [0.2, -0.1], [0.16, 0.1], [0.155, 0.25], [0.001, 0.25]], 32), new THREE.MeshStandardMaterial({ map: mirrorWork(look.dhoti), roughness: 0.8 }));
+    p.attach("Bip01_Pelvis", skirt, V(0, hips.y, hips.z - 0.01));
+    // the kanchali: an embroidered bodice over the chest, the midriff bare below it
+    const chest = p.restPos("Bip01_Spine2");
+    const top = mesh(lathe([[0.001, -0.12], [0.14, -0.12], [0.148, 0.0], [0.14, 0.08], [0.1, 0.13], [0.001, 0.13]], 28), new THREE.MeshStandardMaterial({ map: mirrorWork(look.kurta), roughness: 0.75 }));
+    top.scale.set(1.04, 1, 0.9);
+    p.attach("Bip01_Spine2", top, V(0, chest.y - 0.02, chest.z + 0.02));
+    // short embroidered sleeves over the shoulders
+    for (const side of ["L", "R"] as const) {
+      const sh = p.restPos(`Bip01_${side}_UpperArm`);
+      const cap = mesh(new THREE.SphereGeometry(0.068, 14, 10), new THREE.MeshStandardMaterial({ map: mirrorWork(look.kurta), roughness: 0.75 }));
+      cap.scale.set(1, 0.85, 0.95);
+      p.attach(`Bip01_${side}_UpperArm`, cap, V(sh.x * 0.97, sh.y - 0.01, sh.z + 0.01));
+    }
+    // the odhni over the head and down the back, and the coins along its brow
+    const veil = mesh(odhniGeometry(), new THREE.MeshStandardMaterial({ map: mirrorWork(look.hat), roughness: 0.85, side: THREE.DoubleSide }));
+    veil.scale.set(0.92, 0.95, 0.92);
+    p.attach("Bip01_Head", veil, V(0, head.y - 0.0, head.z - 0.005));
+    for (let i = 0; i < 9; i++) {
+      const a = (i - 4) * 0.22; // a row across the forehead, under the odhni's edge
+      const coin = mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.003, 10), plain("#d9c07a", 0.3));
+      coin.rotation.x = Math.PI / 2;
+      p.attach("Bip01_Head", coin, V(Math.sin(a) * 0.115, head.y + 0.165 - Math.abs(i - 4) * 0.006, head.z + Math.cos(a) * 0.1));
+    }
+    const bindi = mesh(new THREE.SphereGeometry(0.0055, 8, 6), plain("#b3122a", 0.5));
+    p.attach("Bip01_Head", bindi, V(0, head.y + 0.128, head.z + 0.114));
+    // bone bangles packed up both forearms
+    bangles("L");
+    bangles("R");
+    return;
+  }
+  if (look.modern) {
+    // the farmer: red checked gamcha round the neck, the Banjara bag across the body, a steel kada
+    const neck = p.restPos("Bip01_Neck");
+    const gamchaMat = new THREE.MeshStandardMaterial({ map: checkTex("#b3262f"), roughness: 0.9 });
+    const loop = mesh(new THREE.TorusGeometry(0.095, 0.02, 8, 22), gamchaMat);
+    loop.rotation.x = Math.PI / 2 - 0.25;
+    loop.scale.set(1.05, 0.85, 1);
+    p.attach("Bip01_Neck", loop, V(0, neck.y - 0.01, neck.z + 0.02));
+    const end = mesh(new THREE.BoxGeometry(0.075, 0.28, 0.014), gamchaMat);
+    p.attach("Bip01_Spine2", end, V(0.07, neck.y - 0.17, neck.z + 0.115));
+    const chest = p.restPos("Bip01_Spine2");
+    const strap = mesh(new THREE.BoxGeometry(0.034, 0.66, 0.01), plain("#2a1c14"));
+    strap.rotation.z = -0.6;
+    p.attach("Bip01_Spine2", strap, V(-0.01, chest.y - 0.12, chest.z + 0.112));
+    const bag = new THREE.Group();
+    bag.add(mesh(new THREE.BoxGeometry(0.26, 0.24, 0.07), plain("#1f1a22", 0.95)));
+    ["#c8302a", "#e8b830", "#2f8a4a"].forEach((c, i) => { const band = mesh(new THREE.BoxGeometry(0.262, 0.022, 0.072), plain(c, 0.9)); band.position.y = 0.07 - i * 0.05; bag.add(band); });
+    for (let i = 0; i < 4; i++) { const mir = mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.004, 10), plain("#e6edf0", 0.15)); mir.rotation.x = Math.PI / 2; mir.position.set(-0.09 + i * 0.06, -0.08, 0.037); bag.add(mir); }
+    bag.rotation.y = -1.1; // at the hip, following its curve
+    p.attach("Bip01_Pelvis", bag, V(-0.24, p.restPos("Bip01_Pelvis").y + 0.04, -0.07));
+    bangle("L", 0.93, 0.036, "#c9ccd1", 0.009); // (his own avatar already has the right complexion)
+    return;
+  }
+  // village men: the kurta dyed this villager's colour, a pheta or topi, a moustache
+  p.tint(/body/, new THREE.Color(look.kurta).lerp(new THREE.Color("#ffffff"), 0.15));
+  p.skin(/head|body/, tone);
+  for (const s of [-1, 1]) {
+    const mo = mesh(new THREE.CapsuleGeometry(0.0042, 0.022, 3, 6), plain("#2a1c14", 0.95));
+    mo.rotation.z = Math.PI / 2 + s * 0.2;
+    p.attach("Bip01_Head", mo, V(s * 0.016, head.y + 0.03, head.z + 0.108));
+  }
+  if (look.hatStyle === "pheta") {
+    // a wound pheta: thin turns of cloth, tapering to the crown, and the tail down the back
+    const m = new THREE.MeshStandardMaterial({ color: look.hat, roughness: 0.85, bumpMap: weaveTex(), bumpScale: 0.5 });
+    for (let i = 0; i < 6; i++) {
+      // (wide enough to sit over the model's own cap and hide it)
+      const ring = mesh(new THREE.TorusGeometry(0.118 - i * 0.008, 0.02, 7, 24), m);
+      ring.rotation.x = Math.PI / 2 + (i % 2 ? 0.07 : -0.06);
+      p.attach("Bip01_Head", ring, V(0, head.y + 0.118 + i * 0.019, head.z - 0.012));
+    }
+    const crown = mesh(new THREE.SphereGeometry(0.103, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), m);
+    crown.scale.set(1.0, 0.55, 1.0);
+    p.attach("Bip01_Head", crown, V(0, head.y + 0.208, head.z - 0.012));
+    const tail = mesh(new THREE.BoxGeometry(0.07, 0.3, 0.012), new THREE.MeshStandardMaterial({ color: look.tail ?? look.hat, roughness: 0.85 }));
+    tail.rotation.x = 0.18;
+    p.attach("Bip01_Head", tail, V(0.035, head.y + 0.0, head.z - 0.12));
+  } else if (look.hatStyle === "topi") {
+    const cap = mesh(new THREE.CylinderGeometry(0.105, 0.125, 0.09, 4, 1), plain(look.hat, 0.85));
+    cap.scale.set(1, 1, 1.35);
+    cap.rotation.y = Math.PI / 4;
+    p.attach("Bip01_Head", cap, V(0, head.y + 0.185, head.z - 0.008));
+  } else {
+    // bare-headed: short black hair over the crown
+    const hair = mesh(new THREE.SphereGeometry(0.118, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), plain("#17110d", 0.7));
+    hair.scale.set(1, 0.75, 1.08);
+    p.attach("Bip01_Head", hair, V(0, head.y + 0.15, head.z - 0.01));
+  }
+}
+
 export class Figure {
   readonly root = new THREE.Group();
   private body = new THREE.Group();
@@ -207,6 +341,7 @@ export class Figure {
     if (REALISTIC)
       loadPerson(this.personKind).then((m) => {
         this.person = new Person(m);
+        dress(this.person, look);
         this.root.add(this.person.root);
         this.person.setShadow(this.shadowOn);
       }, () => undefined); // no model: keep the modelled figure

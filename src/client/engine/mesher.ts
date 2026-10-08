@@ -86,6 +86,9 @@ export function meshChunk(vox: Uint8Array, cx: number, cz: number): ChunkMesh {
           continue;
         }
 
+        // the river and the talav are drawn by their own water shader (scene/water.ts); voxel water faces
+        // on top of it painted a flat pale-blue sheet over the real surface
+        if (def.liquid) continue;
         const target = def.liquid ? water : def.cutout ? cutout : opaque;
         for (const f of FACES) {
           const nx = x + f.n[0];

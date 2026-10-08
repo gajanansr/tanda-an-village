@@ -15,7 +15,7 @@ import type { Heightfield } from "./heightfield";
  */
 const TILE = 16;
 // blades per block of grassy ground, near the player (fewer on phones)
-const PER_CELL = Q.grassPerCell;
+const PER_CELL = Math.round(Q.grassPerCell * 1.35); // blades are slim, so there are more of them
 
 export class Grass {
   readonly group = new THREE.Group();
@@ -54,7 +54,7 @@ export class Grass {
         attribute vec4 aShape;   // height, width, lean, flower (0 none, 1 marigold, 2 white)
         attribute vec3 aColor;
         uniform float uTime, uFade; uniform vec3 uPlayer;
-        varying vec3 vColor; varying float vT; varying float vFlower; varying vec3 vWorld;
+        varying vec3 vColor; varying float vT; varying float vFlower; varying vec3 vWorld; varying float vX;
         #include <fog_pars_vertex>
         ${NOISE_GLSL}
         void main(){
@@ -72,10 +72,12 @@ export class Grass {
           // the player parts the grass
           vec2 away = aBlade.xz - uPlayer.xz;
           float push = (1.0 - smoothstep(0.0, 1.1, length(away))) * 0.9;
-          vec2 bendDir = normalize(vec2(0.8, 0.35)) * bend + (length(away) > 0.01 ? normalize(away) : vec2(0.0)) * push * t;
+          // every blade arches its own way (no combed lawn); the wind only leans them all a little
+          vec2 own = vec2(sin(aBlade.w * 1.7 + 1.3), cos(aBlade.w * 1.7 + 1.3));
+          vec2 bendDir = normalize(own * 0.8 + vec2(0.8, 0.35) * 0.5) * (aShape.z * t * t * 1.6) + normalize(vec2(0.8, 0.35)) * (gust * 0.9 + flutter) * t * t + (length(away) > 0.01 ? normalize(away) : vec2(0.0)) * push * t;
           p.xz += bendDir * h;
           p.y += h * t * (1.0 - 0.35 * min(1.0, length(bendDir)));
-          vColor = aColor; vT = t; vFlower = aShape.w;
+          vColor = aColor; vT = t; vFlower = aShape.w; vX = position.x;
           vec4 wp = vec4(p, 1.0);
           vWorld = wp.xyz;
           vec4 mvPosition = viewMatrix * wp;
@@ -86,10 +88,12 @@ export class Grass {
         uniform vec3 uSunDir, uSunColor, uSky, uGround;
         uniform vec3 uTorchPos, uTorchDir; uniform float uTorchOn;
         uniform vec3 uBulbs[8]; uniform float uBulbK;
-        varying vec3 vColor; varying float vT; varying float vFlower; varying vec3 vWorld;
+        varying vec3 vColor; varying float vT; varying float vFlower; varying vec3 vWorld; varying float vX;
         #include <fog_pars_fragment>
         void main(){
           vec3 base = vColor * mix(0.45, 1.08, vT);                    // dark at the root, bright at the tip
+          base *= 0.86 + 0.14 * (1.0 - abs(vX) * 2.0);                  // a fold down the middle of each leaf
+          base = mix(base, base * vec3(1.08, 1.0, 0.7), smoothstep(0.75, 1.0, vT) * 0.5); // tips dry and yellow first
           if (vFlower > 0.5 && vT > 0.82) base = vFlower > 1.5 ? vec3(0.95, 0.93, 0.85) : vec3(0.95, 0.52, 0.1);
           float sun = max(uSunDir.y, 0.0);
           vec3 light = uSky * 0.7 + uGround * 0.25 + uSunColor * (0.6 + 0.5 * vT) * sun * 1.35;
@@ -112,7 +116,8 @@ export class Grass {
         }`,
     });
 
-    const green = new THREE.Color("#6e9a3a"), lush = new THREE.Color("#8ab548"), dry = new THREE.Color("#c9ad62");
+    const dead = new THREE.Color("#a08a5a");
+    const green = new THREE.Color("#68853a"), lush = new THREE.Color("#7b9a44"), dry = new THREE.Color("#bea563"); // Deccan grass: olive, drying to gold
     const tmp = new THREE.Color();
     for (let cz = 0; cz < D / TILE; cz++)
       for (let cx = 0; cx < W / TILE; cx++) {
@@ -130,9 +135,10 @@ export class Grass {
               const r = hash2(x * 7 + i, z * 13 + i, 3);
               blades.push(px, y - 0.02, pz, r * Math.PI * 2);
               const fl = r < 0.012 ? 1 : r > 0.992 ? 2 : 0;
-              shapes.push(tall * (0.55 + hash2(i, x + z * 197, 4) * 0.7) * (fl ? 1.15 : 1), 0.035 + r * 0.03, (hash2(i, x, 5) - 0.5) * 0.5, fl);
+              shapes.push(tall * (0.4 + hash2(i, x + z * 197, 4) * 0.95) * (fl ? 1.15 : 1), 0.022 + r * 0.022, 0.15 + hash2(i, x, 5) * 0.45, fl);
               tmp.copy(green).lerp(lush, lushness).lerp(dry, dryness * (0.7 + 0.3 * r));
-              tmp.offsetHSL((r - 0.5) * 0.03, 0, (hash2(i, z, 6) - 0.5) * 0.08);
+              tmp.offsetHSL((r - 0.5) * 0.04, (hash2(i, x, 8) - 0.5) * 0.15, (hash2(i, z, 6) - 0.5) * 0.14);
+              if (hash2(x + i, z * 3, 7) < 0.12) tmp.lerp(dead, 0.85); // a few dead, straw-coloured blades in every clump
               colors.push(tmp.r, tmp.g, tmp.b);
             }
           }

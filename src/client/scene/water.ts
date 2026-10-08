@@ -123,7 +123,7 @@ export class Water {
    * to what's above the water. Skipped when the water is far away or off screen.
    */
   renderReflection(renderer: THREE.WebGLRenderer, scene: THREE.Scene, cam: THREE.PerspectiveCamera) {
-    const on = !!this.rt && cam.position.y > this.level && cam.position.distanceTo(this.centre) < 70 &&
+    const on = !!this.rt && cam.position.y > this.level && cam.position.distanceTo(this.centre) < 28 && // only when you are at the pond: it re-draws the scene
       new THREE.Frustum().setFromProjectionMatrix(new THREE.Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse)).containsPoint(this.centre);
     this.uniforms.uReflOn.value = on ? 1 : 0;
     if (!on) return;

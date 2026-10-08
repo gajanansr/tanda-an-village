@@ -21,7 +21,7 @@ import { Grass } from "./scene/grass";
 import { Trees } from "./scene/trees";
 import { TANK_LADDER_R, Village } from "./scene/village";
 import { Fields } from "./scene/crops";
-import { Post } from "./scene/post";
+import { heatHaze, Post } from "./scene/post";
 import { FARMER, Figure } from "./scene/figure";
 import { Walker } from "./player/walker";
 import { CameraRig } from "./player/camera-rig";
@@ -1869,6 +1869,7 @@ renderer.setAnimationLoop(() => {
   renderer.info.reset();
   if (Q.shadows && frameNo++ % Q.shadowEvery === 0) renderer.shadowMap.needsUpdate = true;
   watch.frame(dt, mode === "play" && !windowOpen() && document.visibilityState === "visible");
+  post.setHeat(mode === "title" ? 0 : heatHaze(clock(game.now()).season, hour), now / 1000);
   talavWater.renderReflection(renderer, scene, camera);
   const tr0 = performance.now();
   post.render();

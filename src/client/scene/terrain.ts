@@ -4,7 +4,7 @@ import { fbm } from "../../shared/noise";
 import { D, W } from "../../shared/world";
 import { type Heightfield, RES } from "./heightfield";
 import { NOISE_GLSL } from "./glslNoise";
-import { Q } from "../quality";
+import { PHOTO, Q } from "../quality";
 
 /*
  * The ground as one smooth mesh: vertex colours blend what each spot is made of (grass drying to
@@ -30,6 +30,7 @@ const RIVERBED = C("#6a604c");
 
 /** Sampling the ground photos from above, at two scales blended by `m` so their tiling doesn't show. */
 const GROUND_GLSL = /* glsl */ `
+#ifdef BG_PHOTO
 uniform sampler2D tEarth, tMud, tFarm, tSand, nEarth, nMud, nFarm, nSand;
 vec3 groundTex(sampler2D t, vec2 p, float s, float m){
   vec3 a = texture2D(t, p * s).rgb, b = texture2D(t, vec2(p.y, -p.x) * s * 0.37 + 0.31).rgb;
@@ -39,7 +40,8 @@ vec3 groundNor(sampler2D t, vec2 p, float s, float m){
   vec3 a = texture2D(t, p * s).rgb * 2.0 - 1.0, b = texture2D(t, vec2(p.y, -p.x) * s * 0.37 + 0.31).rgb * 2.0 - 1.0;
   b = vec3(-b.y, b.x, b.z); // the second sample is turned a quarter, so its normals turn with it
   return mix(a, b, m);
-}`;
+}
+#endif`;
 
 /** Worley-noise crack lines: ~1 where two cells meet (a crack), 0 inside them. */
 const CRACK_GLSL = /* glsl */ `
@@ -109,7 +111,7 @@ export function buildTerrain(hf: Heightfield, waterLevel: number): THREE.Mesh {
   g.computeBoundingSphere();
 
   const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 });
-  if (Q.tier !== "low") mat.defines = { BG_RELIEF: "" };
+  mat.defines = { ...(Q.tier !== "low" && { BG_RELIEF: "" }), ...(PHOTO && { BG_PHOTO: "" }) };
   // photo-scanned ground (CC0, Poly Haven; public/textures/CREDITS.md), mapped from above in world space
   const tl = new THREE.TextureLoader();
   const tex = (f: string, srgb = true) => {
@@ -119,7 +121,7 @@ export function buildTerrain(hf: Heightfield, waterLevel: number): THREE.Mesh {
     t.anisotropy = 8;
     return t;
   };
-  const G = { tEarth: tex("dry_ground_01"), tMud: tex("dry_mud_field_001"), tFarm: tex("farm_soil"), tSand: tex("coast_sand_01"),
+  const G = !PHOTO ? {} : { tEarth: tex("dry_ground_01"), tMud: tex("dry_mud_field_001"), tFarm: tex("farm_soil"), tSand: tex("coast_sand_01"),
     nEarth: tex("dry_ground_01_n", false), nMud: tex("dry_mud_field_001_n", false), nFarm: tex("farm_soil_n", false), nSand: tex("coast_sand_01_n", false) };
   mat.onBeforeCompile = (sh) => {
     for (const [k, t] of Object.entries(G)) sh.uniforms[k] = { value: t };
@@ -153,6 +155,9 @@ export function buildTerrain(hf: Heightfield, waterLevel: number): THREE.Mesh {
         rockCol *= mix(0.72, 1.06, strata) * (1.0 - ledge * 0.35) * mix(0.85, 1.1, bgNoise(vec2(wp.x + wp.y, vBgWorld.y) * 6.0));
         diffuseColor.rgb = mix(diffuseColor.rgb, rockCol, rock * 0.85);
         bgCrack = 0.0;
+        bgPhotoW = 0.0;
+        bgPhotoN = vec3(0.0);
+        #ifdef BG_PHOTO
         // photographed ground, by what the spot is made of. Each is sampled at two scales and blended
         // by noise, so the repeats don't show; the photo's tone is matched to the area's painted colour
         float mix2 = smoothstep(0.35, 0.65, bgNoise(wp * 0.07));
@@ -167,6 +172,7 @@ export function buildTerrain(hf: Heightfield, waterLevel: number): THREE.Mesh {
         vec3 detailed = diffuseColor.rgb * (photo / pl) * mix(0.75, 1.0, pl) * 1.35;
         diffuseColor.rgb = mix(diffuseColor.rgb * mix(0.85, 1.12, pl * 1.6), mix(detailed, photo * 1.05, 0.55), bgPhotoW * (1.0 - vSurf.w));
         bgPhotoN = (groundNor(nEarth, wp, 0.33, mix2) * (wE + wGrass * 0.3) + groundNor(nMud, wp, 0.4, mix2) * wM + groundNor(nFarm, wp, 0.45, mix2) * wF + groundNor(nSand, wp, 0.4, mix2) * wS) / (wE + wGrass * 0.3 + wM + wF + wS + 1e-4);
+        #endif
         // wet mud: darker and richer
         diffuseColor.rgb *= 1.0 - vSurf.y * 0.32;`,
       )

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { mulberry32 } from "../../shared/rng";
+import { PHOTO } from "../quality";
 
 /*
  * Painted surface textures, drawn once on canvases: lime plaster, handmade brick, Mangalore roof
@@ -73,6 +74,17 @@ function make(name: string, size: number, paint: Painter, repeat: [number, numbe
  * A photo-scanned material from public/textures (CC0, Poly Haven; see CREDITS.md): its colour map,
  * with its normal map registered so `mat` picks it up. `repeat` is how many times it tiles per uv unit.
  */
+const blotch = (g: CanvasRenderingContext2D, s: number, r: () => number, n: number, color: string, min: number, max: number) => {
+  for (let i = 0; i < n; i++) {
+    const x = r() * s, y = r() * s, rad = min + r() * (max - min);
+    const grd = g.createRadialGradient(x, y, 0, x, y, rad);
+    grd.addColorStop(0, color);
+    grd.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = grd;
+    g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+  }
+};
+
 const loader = new THREE.TextureLoader();
 function photo(name: string, repeat = 1) {
   const key = "photo:" + name + repeat;
@@ -93,9 +105,82 @@ function photo(name: string, repeat = 1) {
 
 
 export const TEX = {
-  plaster: () => photo("white_stucco_02", 1),
-  brick: () => photo("red_brick_03", 1.5),
-  tiles: () => photo("clay_roof_tiles_02", 1),
+  plaster: () =>
+    PHOTO
+      ? photo("white_stucco_02", 1)
+      : make("plaster", 512, (g, s, r) => {
+      g.fillStyle = "#efe7d6";
+      g.fillRect(0, 0, s, s);
+      // lime plaster: fine sandy grain at two sizes (tiles seamlessly), no big blobs
+      const img = g.getImageData(0, 0, s, s), d = img.data;
+      const cell = (n: number) => { const v = new Float32Array(n * n); for (let i = 0; i < v.length; i++) v[i] = r(); return v; };
+      const coarse = cell(64), fine = cell(s);
+      const smooth = (v: Float32Array, n: number, x: number, y: number) => {
+        const fx = (x / s) * n, fy = (y / s) * n, x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+        const at = (i: number, j: number) => v[((j + n) % n) * n + ((i + n) % n)];
+        const a = at(x0, y0) + (at(x0 + 1, y0) - at(x0, y0)) * tx, b = at(x0, y0 + 1) + (at(x0 + 1, y0 + 1) - at(x0, y0 + 1)) * tx;
+        return a + (b - a) * ty;
+      };
+      for (let y = 0; y < s; y++)
+        for (let x = 0; x < s; x++) {
+          const k = 1 + (smooth(coarse, 64, x, y) - 0.5) * 0.07 + (fine[y * s + x] - 0.5) * 0.06, i = (y * s + x) * 4;
+          d[i] *= k; d[i + 1] *= k; d[i + 2] *= k * 0.99;
+        }
+      g.putImageData(img, 0, 0);
+      // faint trowel sweeps
+      for (let i = 0; i < 70; i++) {
+        const x = r() * s, y = r() * s, rad = 30 + r() * 70, a0 = r() * Math.PI * 2;
+        g.strokeStyle = r() < 0.5 ? "rgba(255,253,246,0.18)" : "rgba(196,180,150,0.12)";
+        g.lineWidth = 2 + r() * 5;
+        g.beginPath();
+        g.arc(x, y, rad, a0, a0 + 0.5 + r() * 0.8);
+        g.stroke();
+      }
+      // a rain-stained band at the foot of the wall (the texture's bottom)
+      const grd = g.createLinearGradient(0, s * 0.72, 0, s);
+      grd.addColorStop(0, "rgba(150,120,90,0)");
+      grd.addColorStop(1, "rgba(170,130,90,0.28)");
+      g.fillStyle = grd;
+      g.fillRect(0, 0, s, s);
+    }, [1, 1], 1.6),
+  brick: () =>
+    PHOTO
+      ? photo("red_brick_03", 1.5)
+      : make("brick", 256, (g, s, r) => {
+      g.fillStyle = "#cdbca2";
+      g.fillRect(0, 0, s, s);
+      const bh = s / 8, bw = s / 4;
+      for (let row = 0; row < 8; row++)
+        for (let col = -1; col < 5; col++) {
+          const x = col * bw + (row % 2 ? bw / 2 : 0);
+          const shade = 0.85 + r() * 0.3;
+          g.fillStyle = `rgb(${Math.floor(170 * shade)},${Math.floor(82 * shade)},${Math.floor(56 * shade)})`;
+          g.fillRect(x + 2, row * bh + 2, bw - 4, bh - 4);
+        }
+      blotch(g, s, r, 30, "rgba(80,40,20,0.18)", 8, 30);
+    }, [1, 1], -4),
+  tiles: () =>
+    PHOTO
+      ? photo("clay_roof_tiles_02", 1)
+      : make("tiles", 256, (g, s, r) => {
+      g.fillStyle = "#9c4a30";
+      g.fillRect(0, 0, s, s);
+      const rows = 8, cols = 6;
+      for (let row = 0; row < rows; row++)
+        for (let col = 0; col < cols; col++) {
+          const x = col * (s / cols) + (row % 2 ? s / cols / 2 : 0), y = row * (s / rows);
+          const grd = g.createLinearGradient(x, 0, x + s / cols, 0);
+          const k = 0.85 + r() * 0.3;
+          grd.addColorStop(0, `rgb(${120 * k},${50 * k},${32 * k})`);
+          grd.addColorStop(0.5, `rgb(${196 * k},${96 * k},${62 * k})`);
+          grd.addColorStop(1, `rgb(${120 * k},${50 * k},${32 * k})`);
+          g.fillStyle = grd;
+          g.beginPath();
+          g.roundRect(x + 1, y + 1, s / cols - 2, s / rows + 4, 6);
+          g.fill();
+        }
+      blotch(g, s, r, 25, "rgba(60,50,40,0.2)", 10, 40); // weathering
+    }, [1, 1], 3),
   thatch: () =>
     make("thatch", 256, (g, s, r) => {
       g.fillStyle = "#b8944f";
@@ -110,8 +195,55 @@ export const TEX = {
         g.stroke();
       }
     }, [1, 1], 2.5),
-  wood: () => photo("brown_planks_05", 1),
-  stone: () => photo("castle_wall_varriation", 1),
+  wood: () =>
+    PHOTO
+      ? photo("brown_planks_05", 1)
+      : make("wood", 256, (g, s, r) => {
+      g.fillStyle = "#7a5a3c";
+      g.fillRect(0, 0, s, s);
+      // weathered timber: many fine, faint, wavy grain lines (bold ones read as stripes under a lamp)
+      for (let i = 0; i < 260; i++) {
+        g.strokeStyle = `rgba(${r() < 0.55 ? "52,36,22" : "150,118,84"},${0.05 + r() * 0.12})`;
+        g.lineWidth = 0.6 + r() * 1.4;
+        const y = r() * s, w = (r() - 0.5) * 6;
+        g.beginPath();
+        g.moveTo(0, y);
+        g.bezierCurveTo(s * 0.33, y + w, s * 0.66, y - w, s, y);
+        g.stroke();
+      }
+      // a couple of knots with the grain bending round them
+      for (let k = 0; k < 2; k++) {
+        const x = r() * s, y = r() * s;
+        for (let j = 0; j < 5; j++) {
+          g.strokeStyle = `rgba(50,32,18,${0.25 - j * 0.04})`;
+          g.lineWidth = 1;
+          g.beginPath();
+          g.ellipse(x, y, 3 + j * 3, 1.5 + j * 1.6, 0, 0, Math.PI * 2);
+          g.stroke();
+        }
+      }
+    }, [1, 1], 1),
+  stone: () =>
+    PHOTO
+      ? photo("castle_wall_varriation", 1)
+      : make("stone", 256, (g, s, r) => {
+      g.fillStyle = "#8e877b";
+      g.fillRect(0, 0, s, s);
+      const rows = 5;
+      for (let row = 0; row < rows; row++) {
+        let x = -r() * 40;
+        while (x < s) {
+          const w = 40 + r() * 50;
+          const k = 0.8 + r() * 0.35;
+          g.fillStyle = `rgb(${150 * k},${143 * k},${130 * k})`;
+          g.beginPath();
+          g.roundRect(x + 2, row * (s / rows) + 2, w - 4, s / rows - 4, 8);
+          g.fill();
+          x += w;
+        }
+      }
+      blotch(g, s, r, 20, "rgba(60,70,40,0.2)", 8, 30); // a little moss
+    }, [1, 1], 3.5),
   /** Banjara embroidery: bold colour bands, zigzag stitching and small round mirrors. */
   mirrorWork: () =>
     make("mirrorwork", 256, (g, s) => {
@@ -152,7 +284,28 @@ export const TEX = {
       g.fillRect(0, 0, s, s);
     }, [1, 1], 0.8),
   /** Corrugated galvanised tin: ridges, a dull zinc sheen, rust bleeding from the nail lines. */
-  tin: () => photo("corrugated_iron_02", 1),
+  tin: () =>
+    PHOTO
+      ? photo("corrugated_iron_02", 1)
+      : make("tin", 256, (g, s, r) => {
+      for (let x = 0; x < s; x++) {
+        const k = Math.sin((x / s) * Math.PI * 2 * 12) * 0.5 + 0.5; // twelve corrugations across
+        const v = Math.floor(118 + k * 70);
+        g.fillStyle = `rgb(${v},${v + 4},${v + 8})`;
+        g.fillRect(x, 0, 1, s);
+      }
+      blotch(g, s, r, 30, "rgba(120,60,25,0.22)", 6, 26); // rust
+      g.fillStyle = "#5a5048"; // nail heads along the purlins
+      for (const y of [s * 0.08, s * 0.92]) for (let x = s / 24; x < s; x += s / 12) g.fillRect(x - 1, y - 1, 3, 3);
+      for (let i = 0; i < 24; i++) { // streaks running down from the nails
+        const x = r() * s, l = 30 + r() * 90;
+        const grd = g.createLinearGradient(0, s * 0.08, 0, s * 0.08 + l);
+        grd.addColorStop(0, "rgba(130,62,22,0.35)");
+        grd.addColorStop(1, "rgba(130,62,22,0)");
+        g.fillStyle = grd;
+        g.fillRect(x, s * 0.08, 3, l);
+      }
+    }, [1, 1], 3),
 };
 
 export function mat(map: THREE.Texture, opts: THREE.MeshStandardMaterialParameters = {}) {

@@ -1,5 +1,5 @@
 import { isEnglish, LANG, LANGS, type Lang, setLang, t, t as tr } from "../i18n";
-import { detectTier, graphicsChoice, Q, setGraphicsChoice, type TierChoice } from "../quality";
+import { detectTier, graphicsChoice, PHOTO, Q, setGraphicsChoice, setPhotoChoice, type TierChoice } from "../quality";
 import type { Save } from "../../shared/save";
 
 /*
@@ -142,8 +142,9 @@ export class SettingsPanel {
         this.s.uiScale = Number(t.value);
         applyUiScale(this.s);
       }
-      if (t.name === "gfx") {
-        setGraphicsChoice(t.value as TierChoice);
+      if (t.name === "gfx" || t.name === "photo") {
+        if (t.name === "gfx") setGraphicsChoice(t.value as TierChoice);
+        else setPhotoChoice(t.checked);
         const msg = this.el.querySelector(".gfx-msg") as HTMLElement;
         msg.innerHTML = `${tr("Takes effect when the game reloads.")} <button data-reload>${tr("Reload now")}</button>`;
         return;
@@ -180,6 +181,7 @@ export class SettingsPanel {
       <label class="check"><input type="checkbox" name="calm" ${this.s.reduceMotion ? "checked" : ""}> <span>${tr("Reduce motion: no confetti, shaking or bobbing markers")}</span></label>
       <label class="gfx">${tr("Graphics")} <b>${tr("running at {tier}", { tier: tr(Q.tier) })}${Q.shadows ? "" : tr(", no shadows")}</b>
         <select name="gfx">${(["auto", "low", "medium", "high"] as const).map((c) => `<option value="${c}" ${graphicsChoice() === c ? "selected" : ""}>${c === "auto" ? tr("Auto (best for this device: {t})", { t: tr(detectTier()) }) : c === "low" ? tr("Low: smoothest, for older phones and laptops") : c === "medium" ? tr("Medium") : tr("High: shadows, bloom and dense grass")}</option>`).join("")}</select></label>
+      <label class="check"><input type="checkbox" name="photo" ${PHOTO ? "checked" : ""}> <span>${tr("Photo-realistic: real textures, lifelike people and sky (bigger download, needs a strong device)")}</span></label>
       <p class="hint gfx-msg">${tr("If the game stutters, choose Low. On Auto, it also lowers itself if your device can't keep up.")}</p>
       <p class="hint">${tr("Settings are kept on this device. Your farm itself is saved online.")}</p>
       <div class="big-acts"><button data-close>${tr("Done")}</button></div></div>`;

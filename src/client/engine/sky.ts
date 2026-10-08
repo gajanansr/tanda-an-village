@@ -1,4 +1,4 @@
-import { Q } from "../quality";
+import { PHOTO, Q } from "../quality";
 import * as THREE from "three";
 import { fbm } from "../../shared/noise";
 
@@ -73,6 +73,7 @@ export class Sky {
       depthWrite: false,
       fog: false,
       vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+      defines: PHOTO ? { PHOTO_SKY: 1 } : { PHOTO_SKY: 0 },
       fragmentShader: `
         uniform vec3 top; uniform vec3 horizon; uniform vec3 sunDir; uniform vec3 sunColor; uniform float sunVisible;
         uniform vec3 cloudCol; uniform float uTime;
@@ -90,6 +91,7 @@ export class Sky {
           col += sunColor * (pow(d, 6.0) * 0.35 + pow(d, 60.0) * 0.6) * sunVisible;   // warm halo
           col = mix(col, sunColor * 1.15 + 0.1, smoothstep(0.9975, 0.999, d) * sunVisible); // the disc
           vec3 dir = normalize(vDir);
+          #if PHOTO_SKY
           if (dir.y > 0.02) {
             // project onto the cloud layer; far clouds squash toward the horizon like real ones
             vec2 p = dir.xz / (dir.y + 0.12) * 1.6;
@@ -104,6 +106,7 @@ export class Sky {
               col = mix(col, lit, c * fade * 0.95);
             }
           }
+          #endif
           gl_FragColor = vec4(col, 1.0);
         }`,
     });
@@ -152,7 +155,7 @@ export class Sky {
       this.clouds.add(sp);
     }
     scene.add(this.clouds);
-    this.clouds.visible = false; // (the painted sprite clouds are replaced by the sky shader's cloud layer)
+    this.clouds.visible = !PHOTO; // photo-realistic: the sky shader's cloud layer replaces the painted sprites
 
     // soft shadows from the sun, in a box that follows the player
     this.sun.castShadow = Q.shadows;

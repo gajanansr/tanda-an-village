@@ -48,7 +48,7 @@ import { AccountCard } from "./ui/account";
 import { current } from "../shared/missions";
 import { applyMotion, applyUiScale, calm, loadSettings, SettingsPanel, TitleScreen } from "./ui/screens";
 import { isTouch, TouchControls } from "./player/touch";
-import { FrameWatch, Q } from "./quality";
+import { FrameWatch, PHOTO, Q } from "./quality";
 import { closedText, hoursText, isOpen } from "../shared/hours";
 import { Playground } from "./scene/playground";
 import { Kabaddi, RAIDS } from "./kabaddi";
@@ -153,7 +153,7 @@ const water = new Water(hf, WATER_Y);
 scene.add(water.mesh);
 const talavWater = new Water(hf, TALAV.level, TALAV);
 scene.add(talavWater.mesh);
-if (Q.tier === "high") talavWater.enableReflection(); // the pond mirrors its banks (one small extra render, nearby only)
+if (PHOTO && Q.tier !== "low") talavWater.enableReflection(); // the pond mirrors its banks (one small extra render, nearby only)
 // the talav behind the school has its own water, higher than the old river's
 const waterSurface = (x: number, z: number) => (talavOut(x, z) < 1.5 ? TALAV.level : WATER_Y);
 const walker = new Walker((x, z) => hf.at(x, z), (x, y, z) => { const id = get(x, y, z); return !TERRAIN.has(id) && block(id).solid; }, waterSurface, W);

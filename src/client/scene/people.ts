@@ -1,23 +1,18 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone } from "three/examples/jsm/utils/SkeletonUtils.js";
+import { PHOTO } from "../quality";
 
 /*
  * Realistic people: rigged, photo-textured avatars from Microsoft Rocketbox (MIT licence; see
  * public/people/CREDITS.md), converted to GLB with idle, walk and run clips. Each figure gets its
- * own skinned copy and animation mixer. Set localStorage "tanda.people" to "classic" to go back to
+ * own skinned copy and animation mixer. Only with photo-realistic graphics (Settings); otherwise
  * the modelled figures.
  */
 export type Kind = "villager_m" | "villager_f" | "hero";
 type Model = { scene: THREE.Object3D; clips: THREE.AnimationClip[] };
 
-export const REALISTIC = (() => {
-  try {
-    return localStorage.getItem("tanda.people") !== "classic";
-  } catch {
-    return true;
-  }
-})();
+export const REALISTIC = PHOTO;
 
 const loading = new Map<Kind, Promise<Model>>();
 const loader = new GLTFLoader();

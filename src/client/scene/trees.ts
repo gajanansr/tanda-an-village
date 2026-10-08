@@ -1,4 +1,4 @@
-import { Q } from "../quality";
+import { PHOTO, Q } from "../quality";
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { mulberry32 } from "../../shared/rng";
@@ -21,7 +21,9 @@ const barkTex = (f: string, srgb: boolean) => {
   t.anisotropy = 8;
   return t;
 };
-const barkMat = new THREE.MeshStandardMaterial({ map: barkTex("bark_brown_02", true), normalMap: barkTex("bark_brown_02_n", false), normalScale: new THREE.Vector2(1.4, 1.4), roughness: 0.95 });
+const barkMat = PHOTO
+  ? new THREE.MeshStandardMaterial({ map: barkTex("bark_brown_02", true), normalMap: barkTex("bark_brown_02_n", false), normalScale: new THREE.Vector2(1.4, 1.4), roughness: 0.95 })
+  : new THREE.MeshStandardMaterial({ color: "#6e5a48", roughness: 1 });
 /** A sprig of leaves painted on a canvas: neem-like leaflets with a midrib, transparent between. */
 function leafTexture() {
   // a neem sprig: small pointed leaflets (~6 cm at card scale), each shaded from a pale midrib to darker

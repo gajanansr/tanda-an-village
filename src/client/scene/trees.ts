@@ -11,49 +11,48 @@ import { NOISE_GLSL } from "./glslNoise";
  * sunlit on top. The canopy sways in the same wind as the grass. All trees share two draw calls.
  * In the fragment shader the canopy breaks up into leaves: small clusters of light and dark leaves,
  * bumpy lighting, a frayed outline (no smooth blob edge) and a little light coming through the
- * shaded side. The bark gets vertical fissures. Both work in world space, so they need no UVs.
+ * shaded side. The bark is a photo, wrapped round each trunk and branch at its real scale.
  */
-const WORLD_VARY = ["#include <common>", "#include <common>\nvarying vec3 vTreeWorld;"] as const;
-const WORLD_SET = ["#include <worldpos_vertex>", "#include <worldpos_vertex>\nvTreeWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;"] as const;
-const barkMat = new THREE.MeshStandardMaterial({ color: "#6e5a48", roughness: 1 });
-barkMat.onBeforeCompile = (sh) => {
-  sh.vertexShader = sh.vertexShader.replace(...WORLD_VARY).replace(...WORLD_SET);
-  sh.fragmentShader = sh.fragmentShader
-    .replace("#include <common>", "#include <common>\nvarying vec3 vTreeWorld;\n" + NOISE_GLSL)
-    .replace(
-      "#include <color_fragment>",
-      /* glsl */ `#include <color_fragment>
-      // fissured bark: long vertical cracks, paler ridges, a few lichen-grey patches
-      vec2 bp = vec2((vTreeWorld.x + vTreeWorld.z) * 9.0, vTreeWorld.y * 1.3);
-      float fis = bgNoise(bp) * 0.65 + bgNoise(bp * 2.7) * 0.35;
-      diffuseColor.rgb *= mix(0.68, 1.08, smoothstep(0.25, 0.75, fis));
-      diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.55, 0.55, 0.5), smoothstep(0.62, 0.8, bgNoise(vTreeWorld.xy * 1.7 + vTreeWorld.z)) * 0.12);`,
-    );
+// photographed bark (CC0, Poly Haven; public/textures/CREDITS.md): grey-brown and deeply fissured, like neem
+const barkTex = (f: string, srgb: boolean) => {
+  const t = new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/${f}.jpg`);
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 8;
+  return t;
 };
+const barkMat = new THREE.MeshStandardMaterial({ map: barkTex("bark_brown_02", true), normalMap: barkTex("bark_brown_02_n", false), normalScale: new THREE.Vector2(1.4, 1.4), roughness: 0.95 });
 /** A sprig of leaves painted on a canvas: neem-like leaflets with a midrib, transparent between. */
 function leafTexture() {
-  const S = 256, c = document.createElement("canvas");
+  // a neem sprig: small pointed leaflets (~6 cm at card scale), each shaded from a pale midrib to darker
+  // edges and lit from one side, with a glossy, lighter top and a duller, bluer underside
+  const S = 512, c = document.createElement("canvas");
   c.width = c.height = S;
   const g = c.getContext("2d")!, r = mulberry32(4242);
-  for (let i = 0; i < 300; i++) {
-    // denser toward the middle, so a card reads as a clump of leaves, not a square
-    const a = r() * Math.PI * 2, d = Math.pow(r(), 0.7) * S * 0.44;
-    const x = S / 2 + Math.cos(a) * d, y = S / 2 + Math.sin(a) * d, len = 14 + r() * 16, ang = a + (r() - 0.5) * 1.6;
-    const k = 0.6 + r() * 0.55, warm = r() < 0.15;
-    g.fillStyle = warm ? `rgb(${190 * k},${200 * k},${120 * k})` : `rgb(${150 * k},${205 * k},${110 * k})`;
+  for (let i = 0; i < 1000; i++) {
+    const a = r() * Math.PI * 2, d = Math.pow(r(), 0.65) * S * 0.46;
+    const x = S / 2 + Math.cos(a) * d, y = S / 2 + Math.sin(a) * d, len = 18 + r() * 14, ang = a + (r() - 0.5) * 1.8;
+    const under = r() < 0.3, k = 0.55 + r() * 0.5;
+    const base = under ? [130, 165, 112] : [108, 168, 70];
     g.save();
     g.translate(x, y);
     g.rotate(ang);
+    const grd = g.createLinearGradient(0, -len * 0.22, 0, len * 0.22);
+    const col = (m: number) => `rgb(${base[0] * k * m},${base[1] * k * m},${base[2] * k * m})`;
+    grd.addColorStop(0, col(0.72));
+    grd.addColorStop(0.45, col(1.12));
+    grd.addColorStop(1, col(0.82));
+    g.fillStyle = grd;
     g.beginPath();
     g.moveTo(-len / 2, 0);
-    g.quadraticCurveTo(0, -len * 0.26, len / 2, 0);
-    g.quadraticCurveTo(0, len * 0.26, -len / 2, 0);
+    g.quadraticCurveTo(-len * 0.1, -len * 0.24, len / 2, -len * 0.02);
+    g.quadraticCurveTo(-len * 0.1, len * 0.22, -len / 2, 0);
     g.fill();
-    g.strokeStyle = "rgba(60,80,40,0.5)";
-    g.lineWidth = 1;
+    g.strokeStyle = `rgba(200,220,150,${under ? 0.15 : 0.3})`; // the midrib
+    g.lineWidth = 0.7;
     g.beginPath();
     g.moveTo(-len / 2, 0);
-    g.lineTo(len / 2, 0);
+    g.lineTo(len / 2, -len * 0.02);
     g.stroke();
     g.restore();
   }
@@ -71,14 +70,14 @@ function leafMaterial(uniforms: { uTime: { value: number } }) {
       "#include <alphatest_fragment>",
       /* glsl */ `// far away the texture's smaller mip levels average the gaps into the leaves and the canopy
       // goes bare; boost alpha by the mip level so trees keep their leaves at any distance
-      vec2 lt = vMapUv * 256.0;
+      vec2 lt = vMapUv * 512.0;
       float lmip = max(0.0, 0.5 * log2(max(dot(dFdx(lt), dFdx(lt)), dot(dFdy(lt), dFdy(lt)))));
-      diffuseColor.a *= 1.0 + lmip * 0.45;
+      diffuseColor.a *= 1.0 + lmip * 0.55;
       #include <alphatest_fragment>`,
     ).replace(
       "#include <emissivemap_fragment>",
       /* glsl */ `#include <emissivemap_fragment>
-      totalEmissiveRadiance += diffuseColor.rgb * vec3(0.10, 0.12, 0.05); // light through the leaves: shaded sides stay green, not navy`,
+      totalEmissiveRadiance += diffuseColor.rgb * vec3(0.16, 0.2, 0.08); // light through the leaves: shaded sides stay green, not navy`,
     );
     sh.vertexShader = sh.vertexShader
       .replace("#include <common>", "#include <common>\nuniform float uTime;\n" + NOISE_GLSL)
@@ -112,6 +111,12 @@ function tube(points: THREE.Vector3[], r0: number, r1: number) {
     }
   }
   g.computeVertexNormals();
+  // the bark photo at its real size (about 0.7 m across), its grain running along the branch
+  const len = curve.getLength(), uv = g.getAttribute("uv") as THREE.BufferAttribute;
+  for (let i = 0; i <= segs; i++) {
+    const r = r0 + (r1 - r0) * (i / segs);
+    for (let j = 0; j <= rad; j++) uv.setXY(i * (rad + 1) + j, (j / rad) * Math.max(1, Math.round((Math.PI * 2 * r) / 0.7)), ((i / segs) * len) / 0.7);
+  }
   return g;
 }
 
@@ -121,13 +126,13 @@ function tube(points: THREE.Vector3[], r0: number, r1: number) {
  * mass; colour darkens inside and underneath; vertex alpha carries the sway weight.
  */
 function clump(center: THREE.Vector3, radius: number, rnd: () => number, base: THREE.Color, sway: number) {
-  const n = Math.round((Q.treeDetail > 1 ? 46 : 26) * Math.min(1.6, Math.max(0.6, radius / 1.6)));
+  const n = Math.round((Q.treeDetail > 1 ? 60 : 30) * Math.min(1.6, Math.max(0.6, radius / 1.6)));
   const pos: number[] = [], nrm: number[] = [], col: number[] = [], uv: number[] = [], idx: number[] = [];
   const tmp = new THREE.Color(), q = new THREE.Quaternion(), z = new THREE.Vector3(0, 0, 1);
-  const size = radius * (Q.treeDetail > 1 ? 0.95 : 1.2);
+  const size = radius * (Q.treeDetail > 1 ? 0.9 : 1.15);
   for (let i = 0; i < n; i++) {
     const d = new THREE.Vector3(rnd() * 2 - 1, rnd() * 2 - 1, rnd() * 2 - 1).normalize();
-    const depth = 0.55 + 0.45 * Math.pow(rnd(), 0.5); // mostly in the outer shell
+    const depth = 0.4 + 0.6 * Math.pow(rnd(), 0.55); // mostly in the outer shell, some deeper so it isn't hollow
     const c = d.clone().multiplyScalar(radius * depth);
     c.y *= 0.78;
     c.add(center);
@@ -136,7 +141,7 @@ function clump(center: THREE.Vector3, radius: number, rnd: () => number, base: T
     q.setFromUnitVectors(z, face).multiply(new THREE.Quaternion().setFromAxisAngle(z, rnd() * Math.PI * 2));
     const s = size * (0.75 + rnd() * 0.5);
     const up = d.y * 0.5 + 0.5;
-    tmp.copy(base).multiplyScalar((0.6 + 0.65 * up) * (0.75 + 0.25 * depth)).offsetHSL((rnd() - 0.5) * 0.03, 0, (rnd() - 0.5) * 0.06);
+    tmp.copy(base).multiplyScalar((0.78 + 0.45 * up) * (0.82 + 0.18 * depth)).offsetHSL((rnd() - 0.5) * 0.03, 0, (rnd() - 0.5) * 0.06);
     const v0 = pos.length / 3;
     for (const [u, v] of [[0, 0], [1, 0], [1, 1], [0, 1]]) {
       const p = new THREE.Vector3((u - 0.5) * s, (v - 0.5) * s, 0).applyQuaternion(q).add(c);

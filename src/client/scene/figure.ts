@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { mergeParts } from "../engine/merge";
+import { type Kind, loadPerson, Person, REALISTIC } from "./people";
 
 /*
  * A villager, modelled rather than built from blocks: kurta, dhoti, pheta or topi, moustache.
@@ -194,9 +195,21 @@ export class Figure {
       return out;
     })();
     for (const m of this.meshes) m.castShadow = on;
+    this.person?.setShadow(on);
   }
 
+  /** The realistic model standing in for this figure, once it has loaded. */
+  private person?: Person;
+  private personKind: Kind;
+
   constructor(look: Look) {
+    this.personKind = look.modern ? "hero" : look.woman ? "villager_f" : "villager_m";
+    if (REALISTIC)
+      loadPerson(this.personKind).then((m) => {
+        this.person = new Person(m);
+        this.root.add(this.person.root);
+        this.person.setShadow(this.shadowOn);
+      }, () => undefined); // no model: keep the modelled figure
     SKINS.add(look.skin);
     const r = this.root;
     r.add(this.body);
@@ -600,6 +613,17 @@ export class Figure {
    * `air`: 1 while off the ground, for the jump pose. Both only matter for the player's rig.
    */
   animate(dt: number, speed: number, motion: { turn?: number; air?: number } = {}) {
+    if (this.person) {
+      // the realistic model walks, runs and idles; for work poses it doesn't have, the modelled figure takes over
+      // (props hang on the modelled figure's hands, so anyone holding something uses it too)
+      const real = this.action === "none" && ![...this.props.values()].some((p) => p.visible);
+      this.person.root.visible = real;
+      this.body.visible = !real;
+      if (real) {
+        this.person.update(dt, speed);
+        return;
+      }
+    }
     const smooth = (a: number, b: number, x: number) => {
       const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
       return t * t * (3 - 2 * t);

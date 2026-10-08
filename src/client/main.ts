@@ -48,7 +48,7 @@ import { AccountCard } from "./ui/account";
 import { current } from "../shared/missions";
 import { applyMotion, applyUiScale, calm, loadSettings, SettingsPanel, TitleScreen } from "./ui/screens";
 import { isTouch, TouchControls } from "./player/touch";
-import { FrameWatch, Q } from "./quality";
+import { FrameWatch, PHOTO, Q } from "./quality";
 import { closedText, hoursText, isOpen } from "../shared/hours";
 import { Playground } from "./scene/playground";
 import { Kabaddi, RAIDS } from "./kabaddi";
@@ -153,6 +153,7 @@ const water = new Water(hf, WATER_Y);
 scene.add(water.mesh);
 const talavWater = new Water(hf, TALAV.level, TALAV);
 scene.add(talavWater.mesh);
+if (PHOTO && Q.tier !== "low") talavWater.enableReflection(); // the pond mirrors its banks (one small extra render, nearby only)
 // the talav behind the school has its own water, higher than the old river's
 const waterSurface = (x: number, z: number) => (talavOut(x, z) < 1.5 ? TALAV.level : WATER_Y);
 const walker = new Walker((x, z) => hf.at(x, z), (x, y, z) => { const id = get(x, y, z); return !TERRAIN.has(id) && block(id).solid; }, waterSurface, W);
@@ -1592,6 +1593,7 @@ function view(name: keyof typeof VIEWS) {
 }
 
 const post = new Post(renderer, scene, camera);
+const grassSky = new THREE.Color();
 const rig = new CameraRig(camera, (x, z) => hf.at(x, z), (x, y, z) => {
   const id = get(x, y, z);
   return !!id && !TERRAIN.has(id) && block(id).solid && block(id).opaque;
@@ -1861,12 +1863,14 @@ renderer.setAnimationLoop(() => {
   grass.lights({ on: torchOn, pos: torch.position, dir: torchAim.position.clone().sub(torch.position) }, BULB_LIGHTS.map((l) => l.position), nightK);
   fields.update(now / 1000, calm());
   const grassAt = mode === "play" ? new THREE.Vector3(body.pos.x, body.pos.y, body.pos.z) : camera.position;
-  grass.update(now / 1000, grassAt, mode === "title" ? Q.grassFar : Math.min(Q.grassFar, settings.renderDistance * 0.55), sunDirection(hour), sc.sun, sc.top);
+  // grass is lit by the whole sky, not just its top (at dusk that's blue-violet and turns the grass teal)
+  grass.update(now / 1000, grassAt, mode === "title" ? Q.grassFar : Math.min(Q.grassFar, settings.renderDistance * 0.55), sunDirection(hour), sc.sun, grassSky.copy(sc.top).lerp(sc.horizon, 0.45));
   if (mode !== "title") applyRenderDistance();
   renderer.info.reset();
   if (Q.shadows && frameNo++ % Q.shadowEvery === 0) renderer.shadowMap.needsUpdate = true;
   watch.frame(dt, mode === "play" && !windowOpen() && document.visibilityState === "visible");
   post.setHeat(mode === "title" ? 0 : heatHaze(clock(game.now()).season, hour), now / 1000);
+  talavWater.renderReflection(renderer, scene, camera);
   const tr0 = performance.now();
   post.render();
   prof.render = prof.render * 0.95 + (performance.now() - tr0) * 0.05;

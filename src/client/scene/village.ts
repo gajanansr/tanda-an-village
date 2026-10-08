@@ -69,17 +69,19 @@ export class Village {
       thatch: () => mat(TEX.thatch(), { roughness: 1 }),
       wood: () => mat(TEX.wood()),
       stone: () => mat(TEX.stone()),
-      blue: () => new THREE.MeshStandardMaterial({ color: "#2f6a9a", roughness: 0.7 }),
-      dark: () => new THREE.MeshStandardMaterial({ color: "#2a2018", roughness: 1 }),
+      blue: () => mat(TEX.plaster(), { color: "#3a78b0", roughness: 0.6 }), // lime-blue paint, a little uneven
+      dark: () => new THREE.MeshStandardMaterial({ color: "#1a1410", roughness: 1 }),
+      iron: () => new THREE.MeshStandardMaterial({ color: "#2b2b2e", roughness: 0.5, metalness: 0.6 }),
       saffron: () => mat(TEX.cloth("#e07a26", "#f2a24a"), { side: THREE.DoubleSide }),
       blueCloth: () => mat(TEX.cloth("#2f6aa6", "#5b93c8"), { side: THREE.DoubleSide }),
-      whiteStone: () => new THREE.MeshStandardMaterial({ color: "#efe8da", roughness: 0.85 }),
+      whiteStone: () => mat(TEX.plaster(), { color: "#fbf6ec", roughness: 0.85 }),
       gold: () => new THREE.MeshStandardMaterial({ color: "#d4a24a", roughness: 0.35, metalness: 0.7 }),
       straw: () => mat(TEX.thatch(), { color: "#e8cf8a", roughness: 1 }),
-      onion: () => new THREE.MeshStandardMaterial({ color: "#b8506a", roughness: 0.5 }),
+      onion: () => new THREE.MeshStandardMaterial({ color: "#a8475c", roughness: 0.45 }),
+      onion2: () => new THREE.MeshStandardMaterial({ color: "#c2706e", roughness: 0.5 }),
       grain: () => new THREE.MeshStandardMaterial({ color: "#d9b36a", roughness: 0.9 }),
       sack: () => new THREE.MeshStandardMaterial({ color: "#c8b48a", roughness: 1 }),
-      cane: () => new THREE.MeshStandardMaterial({ color: "#a8b84a", roughness: 0.7 }),
+      cane: () => mat(TEX.wood(), { color: "#d7c27a", roughness: 0.6 }),
       rope: () => new THREE.MeshStandardMaterial({ color: "#a08a60", roughness: 1 }),
       toran: () => mat(TEX.mirrorWork(), { roughness: 0.6 }),
       tasselA: () => new THREE.MeshStandardMaterial({ color: "#d8342a", roughness: 0.9 }),
@@ -142,8 +144,24 @@ export class Village {
       const fx = cx + sx * (w / 2 + depth / 2) + (sx ? 0 : along), fz = cz + sz * (d / 2 + depth / 2) + (sz ? 0 : along);
       this.box(key, M[key], sx ? depth : ww, hh, sx ? ww : depth, fx, y + 0.3 + up, fz);
     };
-    face(side[0], side[1], 0, 1.05, 1.25, 2.1, "blue", 0.08);
-    face(side[0], side[1], 0, 1.0, 0.95, 1.95, "wood", 0.1);
+    // place a box in a wall's own frame: u along the wall, v up from the floor, n out from the face
+    const onWall = (sx: number, sz: number, u: number, v: number, n: number, bu: number, bv: number, bn: number, key: string, ry = 0) => {
+      const ox = sx ? sx * (w / 2 + n) : u, oz = sz ? sz * (d / 2 + n) : u;
+      const wallRy = sx ? Math.PI / 2 : 0;
+      this.box(key, M[key], bu, bv, bn, cx + ox, y + 0.3 + v, cz + oz, wallRy + ry * (sx || sz));
+    };
+    {
+      // the door: a deep opening in a painted frame, two plank leaves (one ajar), iron studs, a sill
+      const [sx, sz] = side;
+      onWall(sx, sz, 0, 1.05, 0.02, 1.22, 2.12, 0.05, "dark"); // the opening's dark depth
+      for (const u of [-0.64, 0.64]) onWall(sx, sz, u, 1.07, 0.04, 0.1, 2.16, 0.1, "blue"); // jambs
+      onWall(sx, sz, 0, 2.18, 0.04, 1.4, 0.12, 0.12, "blue"); // lintel
+      onWall(sx, sz, 0, 0.03, 0.12, 1.4, 0.06, 0.26, "stone"); // the stone sill
+      for (let i = 0; i < 4; i++) onWall(sx, sz, -0.43 + i * 0.145, 1.05, 0.03, 0.135, 2.0, 0.05, "wood"); // closed leaf: planks
+      for (let i = 0; i < 4; i++) onWall(sx, sz, 0.08 + i * 0.145 + 0.13, 1.05, 0.22 + i * 0.07, 0.135, 2.0, 0.05, "wood", -0.55); // the leaf left ajar
+      for (const v of [0.35, 1.0, 1.7]) onWall(sx, sz, -0.29, v, 0.06, 0.58, 0.07, 0.02, "dark"); // iron straps across the planks
+      onWall(sx, sz, -0.05, 1.05, 0.08, 0.06, 0.06, 0.04, "gold"); // the brass kadi (door chain)
+    }
     // a Banjara toran over the door: an embroidered, mirror-studded hanging with little tassels
     face(side[0], side[1], 0, 2.25, 1.35, 0.22, "toran", 0.12);
     for (let i = -2; i <= 2; i++) face(side[0], side[1], i * 0.28, 2.02, 0.07, 0.22, i % 2 ? "tasselA" : "tasselB", 0.13);
@@ -153,8 +171,13 @@ export class Village {
       if (sx === side[0] && sz === side[1]) continue;
       const span = sx ? d : w;
       for (const off of span > 5 ? [-span / 4, span / 4] : [0]) {
-        face(sx, sz, off, 1.6, 0.95, 0.9, "blue", 0.07);
-        face(sx, sz, off, 1.6, 0.7, 0.66, "dark", 0.09);
+        // a village window: a recess, a painted frame, iron bars, and two wooden shutters swung open
+        onWall(sx, sz, off, 1.6, 0.01, 0.74, 0.7, 0.04, "dark");
+        for (const u of [-0.42, 0.42]) onWall(sx, sz, off + u, 1.6, 0.04, 0.09, 0.9, 0.08, "blue");
+        for (const v of [1.12, 2.08]) onWall(sx, sz, off, v, 0.04, 0.93, 0.09, 0.08, "blue");
+        for (let i = -2; i <= 2; i++) onWall(sx, sz, off + i * 0.14, 1.6, 0.05, 0.022, 0.72, 0.022, "iron"); // the bars
+        onWall(sx, sz, off, 2.22, 0.18, 1.15, 0.05, 0.36, "stone"); // a small sunshade (chhajja) above
+        for (const k of [-1, 1]) onWall(sx, sz, off + k * 0.66, 1.6, 0.17, 0.4, 0.86, 0.035, "blue", k * 1.25); // shutters, opened back
       }
     }
     // hip roof with deep eaves
@@ -177,7 +200,7 @@ export class Village {
   private godown(s: Extract<Structure, { kind: "godown" }>, M: Record<string, () => THREE.Material>) {
     const { x0, z0, w, d, y } = s;
     const cx = x0 + w / 2, cz = z0 + d / 2, H = 3, P = 0.5;
-    if (!M.tin) M.tin = () => new THREE.MeshStandardMaterial({ color: "#8e979b", roughness: 0.45, metalness: 0.6 });
+    if (!M.tin) M.tin = () => mat(TEX.tin(), { roughness: 0.5, metalness: 0.55, side: THREE.DoubleSide });
     if (!M.steel) M.steel = () => new THREE.MeshStandardMaterial({ color: "#3f6b4f", roughness: 0.6, metalness: 0.3 });
     this.box("stone", M.stone, w + 0.4, P, d + 0.4, cx, y + P / 2 - 0.1, cz);
     this.box("brick", M.brick, w, H, d, cx, y + P + H / 2 - 0.1, cz);
@@ -232,11 +255,41 @@ export class Village {
     const r = mulberry32(x0 * 31 + z0);
     for (let i = 0; i < 6; i++) {
       const sx = x0 + 0.6 + (i % 3) * ((w - 1.2) / 2), sz = z0 + d - 0.6 + (i < 3 ? -0.15 : 0.15);
-      const k = Math.floor(r() * 3);
-      const pile = new THREE.SphereGeometry(0.22, 10, 7, 0, Math.PI * 2, 0, Math.PI / 2);
-      this.put(["onion", "grain", "cane"][k], M[["onion", "grain", "cane"][k]], pile, new THREE.Matrix4().makeTranslation(sx, y + 0.9, sz));
+      this.produce(["onion", "grain", "cane"][Math.floor(r() * 3)] as "onion" | "grain" | "cane", M, sx, y + 0.9, sz, r);
     }
     for (let i = 0; i < 3; i++) this.box("sack", M.sack, 0.5, 0.6, 0.45, x0 + 0.6 + i * 0.7, y + 0.3, z0 + 0.7, r() * 0.5);
+  }
+
+  /** What's for sale: a heap of onions, a mound of jowar in a basket, or a bundle of sugarcane. */
+  private produce(kind: "onion" | "grain" | "cane", M: Record<string, () => THREE.Material>, x: number, y: number, z: number, r: () => number) {
+    const at = (px: number, py: number, pz: number, ry = 0, rz = 0) => new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(0, ry, rz)).setPosition(px, py, pz);
+    if (kind === "onion") {
+      // three layers, each a smaller ring than the one below
+      for (const [n, ring, h] of [[7, 0.16, 0.05], [5, 0.09, 0.13], [1, 0, 0.2]] as const)
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2 + r(), rad = 0.05 + r() * 0.015;
+          const o = new THREE.SphereGeometry(rad, 9, 7);
+          o.scale(1, 0.85, 1);
+          this.put(r() < 0.5 ? "onion" : "onion2", r() < 0.5 ? M.onion : M.onion2, o, at(x + Math.cos(a) * ring, y + h, z + Math.sin(a) * ring, r() * 6, (r() - 0.5) * 0.6));
+        }
+    } else if (kind === "grain") {
+      this.put("basket", M.basket, new THREE.CylinderGeometry(0.24, 0.18, 0.14, 14, 1, true), at(x, y + 0.07, z));
+      const mound = new THREE.ConeGeometry(0.23, 0.17, 18, 3);
+      const p = mound.getAttribute("position") as THREE.BufferAttribute;
+      for (let i = 0; i < p.count; i++) p.setY(i, p.getY(i) + Math.sin(p.getX(i) * 40 + p.getZ(i) * 31) * 0.008); // loose grain, not a smooth cone
+      mound.computeVertexNormals();
+      this.put("grain", M.grain, mound, at(x, y + 0.2, z));
+    } else {
+      // a tied bundle of canes lying along the counter
+      for (let i = 0; i < 7; i++) {
+        const c = new THREE.CylinderGeometry(0.022, 0.026, 0.62, 7);
+        c.rotateZ(Math.PI / 2);
+        this.put("cane", M.cane, c, at(x + (r() - 0.5) * 0.06, y + 0.03 + (i % 3) * 0.04, z + (i - 3) * 0.035, (r() - 0.5) * 0.15));
+      }
+      const tie = new THREE.TorusGeometry(0.1, 0.012, 5, 12);
+      tie.rotateY(Math.PI / 2);
+      for (const dx of [-0.15, 0.15]) this.put("rope", M.rope, tie, at(x + dx, y + 0.07, z));
+    }
   }
 
   private temple(s: Extract<Structure, { kind: "temple" }>, M: Record<string, () => THREE.Material>) {
@@ -256,20 +309,23 @@ export class Village {
     this.lamps.push(new THREE.Vector3(cx, y + 1.5, cz - 0.4));
     // the shikhara: a ribbed, curving tower
     const prof: THREE.Vector2[] = [];
-    for (let i = 0; i <= 14; i++) {
-      const t = i / 14;
-      prof.push(new THREE.Vector2(2.4 * Math.pow(1 - t, 0.75) + 0.05, t * 5.2));
+    for (let i = 0; i <= 64; i++) {
+      const t = i / 64, y = t * 5.2;
+      // stacked stone courses: each one flares out a little at its foot
+      const course = 1 - 0.06 * ((y / 0.52) % 1);
+      prof.push(new THREE.Vector2((2.4 * Math.pow(1 - t, 0.75) + 0.05) * course, y));
     }
-    const tower = new THREE.LatheGeometry(prof, 16);
+    const tower = new THREE.LatheGeometry(prof, 32);
     const p = tower.getAttribute("position") as THREE.BufferAttribute;
     for (let i = 0; i < p.count; i++) {
       const a = Math.atan2(p.getZ(i), p.getX(i));
       const rib = 1 + 0.07 * Math.cos(a * 8); // the vertical ribs
       p.setX(i, p.getX(i) * rib);
       p.setZ(i, p.getZ(i) * rib);
-      p.setY(i, p.getY(i) + Math.floor(p.getY(i) / 0.65) * 0.0);
     }
     tower.computeVertexNormals();
+    const tuv = tower.getAttribute("uv") as THREE.BufferAttribute;
+    for (let i = 0; i < tuv.count; i++) tuv.setXY(i, tuv.getX(i) * 5, tuv.getY(i) * 1.7); // plaster at wall scale, not stretched
     this.put("whiteStone", M.whiteStone, tower, new THREE.Matrix4().makeTranslation(cx, y + 3.4, cz));
     // the amalaka ring and the gold kalash
     const am = new THREE.TorusGeometry(0.42, 0.16, 8, 16);
@@ -781,7 +837,7 @@ export class Village {
     const shaft = new THREE.CylinderGeometry(0.97, 0.97, 0.8, 22, 1, true);
     shaft.scale(-1, 1, 1);
     this.put("wellShaft", () => new THREE.MeshStandardMaterial({ color: "#3b352d", roughness: 1 }), shaft, new THREE.Matrix4().makeTranslation(cx, y + 0.45, cz));
-    const water = new THREE.Mesh(new THREE.CircleGeometry(0.96, 28), new THREE.MeshStandardMaterial({ color: "#2c5f66", roughness: 0.12, metalness: 0.35, emissive: new THREE.Color("#0c2428"), emissiveIntensity: 0.6 }));
+    const water = new THREE.Mesh(new THREE.CircleGeometry(0.96, 28), new THREE.MeshStandardMaterial({ color: "#14211d", roughness: 0.08, metalness: 0 }) /* deep in a stone shaft the water is nearly black, with a glint */);
     water.rotation.x = -Math.PI / 2;
     water.position.set(cx, y + 0.12, cz);
     this.group.add(water);

@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { UKHALI_ROADS } from "../../shared/ukhali-osm";
 import type { Plot } from "../../shared/world";
-import { TEX } from "./textures";
+import { mat as texMat, TEX } from "./textures";
 
 /*
  * A modern tanda: concrete electric poles with sagging wires along the roads (and street lamps),
@@ -10,20 +10,48 @@ import { TEX } from "./textures";
  * and field channels, and black drip-irrigation lines along the rows of irrigated fields.
  */
 const mat = (c: string, o: THREE.MeshStandardMaterialParameters = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, ...o });
-const concrete = mat("#b9b3a6"), brick = new THREE.MeshStandardMaterial({ map: TEX.brick(), roughness: 0.9 }), pipeBlue = mat("#2f6fb4", { roughness: 0.5 }), black = mat("#1c1c1c", { roughness: 0.6 }), metal = mat("#6b7078", { metalness: 0.6, roughness: 0.4 }), cement = mat("#a9a49a"), tin = mat("#8e949c", { metalness: 0.5, roughness: 0.5 });
+const concrete = texMat(TEX.plaster(), { color: "#bdb6a8", roughness: 0.95 }), brick = texMat(TEX.brick(), { roughness: 0.9 }), pipeBlue = mat("#2f6fb4", { roughness: 0.5 }), black = mat("#1c1c1c", { roughness: 0.6 }), metal = mat("#6b7078", { metalness: 0.6, roughness: 0.4 }), cement = texMat(TEX.plaster(), { color: "#a39d92", roughness: 0.95 }), tin = texMat(TEX.tin(), { metalness: 0.55, roughness: 0.5 });
+
+/** A soft round droplet for the spray (points are square without one). */
+let drop: THREE.CanvasTexture | null = null;
+function dropTexture() {
+  if (drop) return drop;
+  const c = document.createElement("canvas");
+  c.width = c.height = 32;
+  const g = c.getContext("2d")!, r = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+  r.addColorStop(0, "rgba(255,255,255,1)");
+  r.addColorStop(0.45, "rgba(255,255,255,0.6)");
+  r.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = r;
+  g.fillRect(0, 0, 32, 32);
+  return (drop = new THREE.CanvasTexture(c));
+}
 
 /** Flowing water: a strip whose texture scrolls, bright and foamy. */
-function waterMaterial() {
+function waterMaterial(flow = false) {
   return new THREE.ShaderMaterial({
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
     uniforms: { uTime: { value: 0 }, uOn: { value: 1 } },
+    defines: flow ? { FLOW: "" } : {},
     vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
     fragmentShader: `uniform float uTime; uniform float uOn; varying vec2 vUv;
       void main(){
-        float s = fract(vUv.y * 3.0 - uTime * 2.4);
-        float streak = smoothstep(0.0, 0.5, sin((vUv.x * 9.0 + vUv.y * 2.0 - uTime * 7.0)) * 0.5 + 0.5);
-        vec3 c = mix(vec3(0.3, 0.55, 0.68), vec3(0.85, 0.93, 0.98), streak * 0.55 + s * 0.2);
-        gl_FragColor = vec4(c, (0.55 + 0.35 * streak) * uOn);
+        #ifdef FLOW
+        // a shallow stream along the channel: murky, mostly see-through over the cement, with small
+        // ripples drifting downstream and a soft glint on their crests
+        float w = sin(vUv.y * 60.0 + uTime * 5.0 + sin(vUv.x * 12.0 + vUv.y * 8.0) * 1.2) * 0.5 + 0.5;
+        float w2 = sin(vUv.y * 37.0 + vUv.x * 9.0 + uTime * 3.4) * 0.5 + 0.5;
+        float crest = pow(w * w2, 5.0);
+        float edge = smoothstep(0.0, 0.18, vUv.x) * (1.0 - smoothstep(0.82, 1.0, vUv.x));
+        vec3 c = mix(vec3(0.24, 0.29, 0.24), vec3(0.78, 0.82, 0.8), crest * 0.55);
+        gl_FragColor = vec4(c, (0.5 + 0.25 * crest) * edge * uOn);
+        #else
+        // clear, fast water: thin bright ropes running through it, white only where it churns
+        float rope = pow(sin(vUv.x * 40.0 + sin(vUv.y * 6.0 - uTime * 9.0) * 1.5) * 0.5 + 0.5, 6.0);
+        float churn = smoothstep(0.55, 0.9, fract(sin(floor(vUv.y * 14.0 - uTime * 10.0) * 43.1 + floor(vUv.x * 10.0) * 7.7) * 4375.5));
+        vec3 c = mix(vec3(0.55, 0.62, 0.6), vec3(0.95, 0.97, 0.98), rope * 0.7 + churn * 0.4);
+        gl_FragColor = vec4(c, (0.22 + 0.45 * rope + 0.25 * churn) * uOn);
+        #endif
       }`,
   });
 }
@@ -70,7 +98,9 @@ export class Infrastructure {
         if (carry < 0) carry += step;
       }
       pts.forEach((p, i) => {
-        const pole = new THREE.CylinderGeometry(0.09, 0.14, 7.5, 6);
+        // a precast concrete pole: square in section, tapering, with the rebar-stained face of the real ones
+        const pole = new THREE.CylinderGeometry(0.08, 0.15, 7.5, 4, 1);
+        pole.rotateY(Math.PI / 4 + (n % 2) * 0.3);
         pole.translate(p.x, p.y + 3.75, p.z);
         geos.push({ g: pole, m: concrete });
         const arm = new THREE.BoxGeometry(1.4, 0.1, 0.1);
@@ -105,8 +135,7 @@ export class Infrastructure {
     }
     const byMat = new Map<THREE.Material, THREE.BufferGeometry[]>();
     for (const { g, m } of geos) {
-      const q = g.index ? g.toNonIndexed() : g;
-      q.deleteAttribute("uv");
+      const q = g.index ? g.toNonIndexed() : g; // (uvs kept: the concrete poles are textured)
       if (!byMat.has(m)) byMat.set(m, []);
       byMat.get(m)!.push(q);
     }
@@ -148,7 +177,7 @@ export class Infrastructure {
     // the cement tank (haud)
     const tx = dx * 2.6, tz = dz * 2.6;
     add(new THREE.BoxGeometry(1.8, 0.6, 1.8), cement, tx, 0.3, tz);
-    const surf = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), new THREE.MeshStandardMaterial({ color: "#4f8fa8", roughness: 0.2, metalness: 0.2 }));
+    const surf = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.6), new THREE.MeshStandardMaterial({ color: "#2c3a2c", roughness: 0.06, metalness: 0.1 }) /* well water in a cement haud: dark and glassy */);
     surf.rotation.x = -Math.PI / 2;
     surf.position.set(tx, 0.61, tz);
     g.add(surf);
@@ -156,12 +185,12 @@ export class Infrastructure {
     const wm = waterMaterial();
     this.water.push(wm);
     const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(dx * 2.3, 1.05, dz * 2.3), new THREE.Vector3(dx * 2.75, 1.0, dz * 2.75), new THREE.Vector3(dx * 2.8, 0.58, dz * 2.8));
-    g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 12, 0.11, 8), wm));
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.07, 10), wm));
     // splash spray
     const sp = new Float32Array(60 * 3);
     const pts = new THREE.BufferGeometry();
     pts.setAttribute("position", new THREE.BufferAttribute(sp, 3));
-    const splash = new THREE.Points(pts, new THREE.PointsMaterial({ color: "#f4faff", size: 0.09, transparent: true, opacity: 0.9 }));
+    const splash = new THREE.Points(pts, new THREE.PointsMaterial({ color: "#f4faff", size: 0.05, map: dropTexture(), transparent: true, opacity: 0.75, depthWrite: false }));
     splash.position.set(dx * 2.8, 0.6, dz * 2.8);
     splash.userData.seed = Math.random() * 10;
     g.add(splash);
@@ -172,7 +201,7 @@ export class Infrastructure {
     ch.position.set(dx * (3.5 + cl / 2), 0.02, dz * (3.5 + cl / 2));
     ch.rotation.y = Math.atan2(dx, dz);
     g.add(ch);
-    const stream = new THREE.Mesh(new THREE.PlaneGeometry(0.34, cl), (() => { const m = waterMaterial(); this.water.push(m); return m; })());
+    const stream = new THREE.Mesh(new THREE.PlaneGeometry(0.34, cl), (() => { const m = waterMaterial(true); this.water.push(m); return m; })());
     stream.rotation.x = -Math.PI / 2;
     stream.rotation.z = -Math.atan2(dx, dz) + Math.PI;
     stream.position.set(dx * (3.5 + cl / 2), 0.12, dz * (3.5 + cl / 2));

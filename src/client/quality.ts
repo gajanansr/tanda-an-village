@@ -160,5 +160,22 @@ export class FrameWatch {
   }
 }
 
+/**
+ * Photo-realistic graphics: photographed materials, realistic rigged people, a shader sky and a
+ * mirror on the pond. A heavier download and more GPU work, so it's on by default only on the high
+ * tier; the player can switch it either way in Settings (it applies on reload).
+ */
+const PHOTO_KEY = "tanda.photo";
+export const photoChoice = (): "on" | "off" | null => {
+  const v = read(PHOTO_KEY);
+  return v === "on" || v === "off" ? v : null;
+};
+export function setPhotoChoice(on: boolean) {
+  write(PHOTO_KEY, on ? "on" : "off");
+}
+
 /** The quality this session runs at (the watcher may lower it while playing). */
 export const Q: Quality = typeof document !== "undefined" ? pickQuality() : tierSettings("medium");
+
+/** Whether this session runs photo-realistic (decided once at boot). */
+export const PHOTO: boolean = typeof document !== "undefined" ? (photoChoice() ?? (Q.tier === "high" ? "on" : "off")) === "on" : false;

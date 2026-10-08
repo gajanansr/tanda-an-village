@@ -10,7 +10,7 @@ import { mat as texMat, TEX } from "./textures";
  * and field channels, and black drip-irrigation lines along the rows of irrigated fields.
  */
 const mat = (c: string, o: THREE.MeshStandardMaterialParameters = {}) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8, ...o });
-const concrete = texMat(TEX.plaster(), { color: "#bdb6a8", roughness: 0.95 }), brick = texMat(TEX.brick(), { roughness: 0.9 }), pipeBlue = mat("#2f6fb4", { roughness: 0.5 }), black = mat("#1c1c1c", { roughness: 0.6 }), metal = mat("#6b7078", { metalness: 0.6, roughness: 0.4 }), cement = texMat(TEX.plaster(), { color: "#a39d92", roughness: 0.95 }), tin = mat("#8e949c", { metalness: 0.5, roughness: 0.5 });
+const concrete = texMat(TEX.plaster(), { color: "#bdb6a8", roughness: 0.95 }), brick = texMat(TEX.brick(), { roughness: 0.9 }), pipeBlue = mat("#2f6fb4", { roughness: 0.5 }), black = mat("#1c1c1c", { roughness: 0.6 }), metal = mat("#6b7078", { metalness: 0.6, roughness: 0.4 }), cement = texMat(TEX.plaster(), { color: "#a39d92", roughness: 0.95 }), tin = texMat(TEX.tin(), { metalness: 0.55, roughness: 0.5 });
 
 /** A soft round droplet for the spray (points are square without one). */
 let drop: THREE.CanvasTexture | null = null;
@@ -98,7 +98,9 @@ export class Infrastructure {
         if (carry < 0) carry += step;
       }
       pts.forEach((p, i) => {
-        const pole = new THREE.CylinderGeometry(0.09, 0.14, 7.5, 6);
+        // a precast concrete pole: square in section, tapering, with the rebar-stained face of the real ones
+        const pole = new THREE.CylinderGeometry(0.08, 0.15, 7.5, 4, 1);
+        pole.rotateY(Math.PI / 4 + (n % 2) * 0.3);
         pole.translate(p.x, p.y + 3.75, p.z);
         geos.push({ g: pole, m: concrete });
         const arm = new THREE.BoxGeometry(1.4, 0.1, 0.1);
@@ -133,8 +135,7 @@ export class Infrastructure {
     }
     const byMat = new Map<THREE.Material, THREE.BufferGeometry[]>();
     for (const { g, m } of geos) {
-      const q = g.index ? g.toNonIndexed() : g;
-      q.deleteAttribute("uv");
+      const q = g.index ? g.toNonIndexed() : g; // (uvs kept: the concrete poles are textured)
       if (!byMat.has(m)) byMat.set(m, []);
       byMat.get(m)!.push(q);
     }

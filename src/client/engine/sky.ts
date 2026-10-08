@@ -60,6 +60,8 @@ export class Sky {
     sunDir: { value: new THREE.Vector3() },
     sunColor: { value: new THREE.Color() },
     sunVisible: { value: 1 },
+    cloudCol: { value: new THREE.Color() },
+    uTime: { value: 0 },
   };
   private cloudMats: THREE.SpriteMaterial[] = [];
   private cloudOffset = 0;
@@ -73,13 +75,35 @@ export class Sky {
       vertexShader: `varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
       fragmentShader: `
         uniform vec3 top; uniform vec3 horizon; uniform vec3 sunDir; uniform vec3 sunColor; uniform float sunVisible;
+        uniform vec3 cloudCol; uniform float uTime;
         varying vec3 vDir;
+        float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float n2(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(h2(i), h2(i + vec2(1, 0)), f.x), mix(h2(i + vec2(0, 1)), h2(i + vec2(1, 1)), f.x), f.y); }
+        float fbm(vec2 p){ float a = 0.5, s = 0.0; for (int i = 0; i < 6; i++) { s += a * n2(p); p = p * 2.03 + 11.7; a *= 0.5; } return s; }
+        // cumulus coverage on a layer high overhead: billowy tops, flat-ish bases
+        float cloud(vec2 p){ float d = fbm(p + vec2(uTime * 0.004, uTime * 0.0015)); return smoothstep(0.52, 0.78, d); }
         void main(){
           float y = clamp(vDir.y, -0.2, 1.0);
           vec3 col = mix(horizon, top, pow(max(y, 0.0), 0.55));
           float d = max(dot(normalize(vDir), normalize(sunDir)), 0.0);
           col += sunColor * (pow(d, 6.0) * 0.35 + pow(d, 60.0) * 0.6) * sunVisible;   // warm halo
           col = mix(col, sunColor * 1.15 + 0.1, smoothstep(0.9975, 0.999, d) * sunVisible); // the disc
+          vec3 dir = normalize(vDir);
+          if (dir.y > 0.02) {
+            // project onto the cloud layer; far clouds squash toward the horizon like real ones
+            vec2 p = dir.xz / (dir.y + 0.12) * 1.6;
+            float c = cloud(p);
+            if (c > 0.001) {
+              // light: thinner toward the sun means brighter (a cheap two-tap shadow through the cloud)
+              vec2 toSun = normalize(sunDir.xz + 1e-4) * 0.06;
+              float shade = clamp(1.0 - (cloud(p + toSun) - c) * 2.2 - cloud(p + toSun * 2.5) * 0.35, 0.35, 1.0);
+              vec3 lit = mix(cloudCol * 0.62 + horizon * 0.12, cloudCol * 1.05 + sunColor * 0.12, shade);
+              lit += sunColor * pow(d, 8.0) * (1.0 - c) * 0.8 * sunVisible; // silver lining toward the sun
+              float fade = smoothstep(0.02, 0.18, dir.y);                 // dissolve into the horizon haze
+              col = mix(col, lit, c * fade * 0.95);
+            }
+          }
           gl_FragColor = vec4(col, 1.0);
         }`,
     });
@@ -128,6 +152,7 @@ export class Sky {
       this.clouds.add(sp);
     }
     scene.add(this.clouds);
+    this.clouds.visible = false; // (the painted sprite clouds are replaced by the sky shader's cloud layer)
 
     // soft shadows from the sun, in a box that follows the player
     this.sun.castShadow = Q.shadows;
@@ -161,6 +186,8 @@ export class Sky {
     (this.scene.fog as THREE.Fog).color.copy(s.horizon);
     this.dome.position.copy(focus);
     for (const m of this.cloudMats) m.color.copy(s.cloud);
+    this.uniforms.cloudCol.value.copy(s.cloud);
+    this.uniforms.uTime.value += dt;
     this.cloudOffset += dt * 0.6;
     this.clouds.position.set(focus.x + Math.sin(this.cloudOffset * 0.01) * 30, 0, focus.z + this.cloudOffset * 0.2 % 60);
     this.clouds.rotation.y = this.cloudOffset * 0.0015;

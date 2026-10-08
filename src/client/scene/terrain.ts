@@ -46,7 +46,7 @@ export function buildTerrain(hf: Heightfield, waterLevel: number): THREE.Mesh {
   const n = hf.n;
   const pos = new Float32Array(n * n * 3);
   const col = new Float32Array(n * n * 3);
-  const surf = new Float32Array(n * n * 3); // how much of each vertex is sand, wet mud, black (cracking) soil
+  const surf = new Float32Array(n * n * 4); // how much of each vertex is sand, wet mud, black (cracking) soil, bare rock
   const tmp = new THREE.Color();
   for (let j = 0; j < n; j++)
     for (let i = 0; i < n; i++) {
@@ -56,11 +56,12 @@ export function buildTerrain(hf: Heightfield, waterLevel: number): THREE.Mesh {
       pos.set([x, y, z], k * 3);
       // average the colours of the columns this vertex touches
       tmp.setRGB(0, 0, 0);
-      let c = 0, sand = 0, wet = 0, black = 0;
+      let c = 0, sand = 0, wet = 0, black = 0, rockW = 0;
       for (const [dx, dz] of [[-0.25, -0.25], [0.25, -0.25], [-0.25, 0.25], [0.25, 0.25]]) {
         const sx = Math.min(W - 1, Math.max(0, Math.floor(x + dx))), sz = Math.min(D - 1, Math.max(0, Math.floor(z + dz)));
         const id = hf.surface[sx + W * sz];
         if (id === B.SAND) sand += 0.25;
+        if (id === B.STONE) rockW += 0.25;
         if (id === B.TILLED_WET) wet += 0.25;
         if (id === B.BLACK_SOIL) black += 0.25; // untilled black soil cracks; ploughed soil is clods
         let base = PALETTE[id] ?? PALETTE[B.GRASS];
@@ -71,7 +72,7 @@ export function buildTerrain(hf: Heightfield, waterLevel: number): THREE.Mesh {
       tmp.multiplyScalar(1 / c);
       if (y < waterLevel + 0.4) tmp.lerp(RIVERBED, Math.min(1, (waterLevel + 0.4 - y) / 1.2)); // wet mud down to the riverbed
       col.set([tmp.r, tmp.g, tmp.b], k * 3);
-      surf.set([sand, Math.max(wet, Math.min(1, (waterLevel + 0.6 - y) / 0.8)), black], k * 3); // the banks are wet too
+      surf.set([sand, Math.max(wet, Math.min(1, (waterLevel + 0.6 - y) / 0.8)), black, rockW], k * 4); // the banks are wet too
     }
   const idx = new Uint32Array((n - 1) * (n - 1) * 6);
   let t = 0;
@@ -84,7 +85,7 @@ export function buildTerrain(hf: Heightfield, waterLevel: number): THREE.Mesh {
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   g.setAttribute("color", new THREE.BufferAttribute(col, 3));
-  g.setAttribute("aSurf", new THREE.BufferAttribute(surf, 3));
+  g.setAttribute("aSurf", new THREE.BufferAttribute(surf, 4));
   g.setIndex(new THREE.BufferAttribute(idx, 1));
   g.computeVertexNormals();
   g.computeBoundingSphere();
@@ -93,10 +94,10 @@ export function buildTerrain(hf: Heightfield, waterLevel: number): THREE.Mesh {
   if (Q.tier !== "low") mat.defines = { BG_RELIEF: "" };
   mat.onBeforeCompile = (sh) => {
     sh.vertexShader = sh.vertexShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vBgWorld;\nvarying vec3 vBgNormal;\nattribute vec3 aSurf;\nvarying vec3 vSurf;")
+      .replace("#include <common>", "#include <common>\nvarying vec3 vBgWorld;\nvarying vec3 vBgNormal;\nattribute vec4 aSurf;\nvarying vec4 vSurf;")
       .replace("#include <worldpos_vertex>", "#include <worldpos_vertex>\nvBgWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvBgNormal = normal;\nvSurf = aSurf;");
     sh.fragmentShader = sh.fragmentShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vBgWorld;\nvarying vec3 vBgNormal;\nvarying vec3 vSurf;\nfloat bgBare;\nfloat bgCrack;\n" + NOISE_GLSL + CRACK_GLSL +
+      .replace("#include <common>", "#include <common>\nvarying vec3 vBgWorld;\nvarying vec3 vBgNormal;\nvarying vec4 vSurf;\nfloat bgBare;\nfloat bgCrack;\n" + NOISE_GLSL + CRACK_GLSL +
         "\nfloat bgRelief(vec2 p){ return bgNoise(p * 2.3) * 0.5 + bgNoise(p * 6.7 + 3.0) * 0.32 + bgNoise(p * 15.0 + 9.0) * 0.2; }")
       .replace(
         "#include <color_fragment>",
@@ -108,11 +109,19 @@ export function buildTerrain(hf: Heightfield, waterLevel: number): THREE.Mesh {
         diffuseColor.rgb *= mix(0.84, 1.12, broad) * mix(0.9, 1.08, mid) * mix(0.9, 1.08, fine);
         // clods and pebbles in bare earth
         float bare = 1.0 - smoothstep(0.1, 0.25, diffuseColor.g - diffuseColor.b);
-        diffuseColor.rgb *= 1.0 + bare * (bgNoise(wp * 9.0) - 0.5) * 0.35;
+        diffuseColor.rgb *= 1.0 + bare * (1.0 - vSurf.w) * (bgNoise(wp * 9.0) - 0.5) * 0.35;
         bgBare = bare;
         // slopes show a little earth through the grass
         float slope = 1.0 - clamp(vBgNormal.y, 0.0, 1.0);
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.52, 0.42, 0.3), clamp(slope * 2.2, 0.0, 0.45));
+        // bare rock (the tekdi): layered strata and blocky ledges instead of speckle; rock is grey-brown
+        // and shows where the ground is steep and not green
+        float rock = vSurf.w;
+        float strata = sin(vBgWorld.y * 3.1 + bgNoise(wp * 0.5) * 2.5) * 0.5 + 0.5;
+        float ledge = smoothstep(0.75, 0.95, strata);
+        vec3 rockCol = mix(vec3(0.43, 0.39, 0.33), vec3(0.58, 0.53, 0.45), bgNoise(wp * 0.9 + vBgWorld.y));
+        rockCol *= mix(0.72, 1.06, strata) * (1.0 - ledge * 0.35) * mix(0.85, 1.1, bgNoise(vec2(wp.x + wp.y, vBgWorld.y) * 6.0));
+        diffuseColor.rgb = mix(diffuseColor.rgb, rockCol, rock * 0.85);
         // sand: fine grain and a few bright quartz specks
         diffuseColor.rgb *= 1.0 + vSurf.x * ((bgNoise(wp * 22.0) - 0.5) * 0.22 + step(0.93, bgNoise(wp * 41.0)) * 0.18);
         // black cotton soil dries into a net of cracks (not where it's wet)

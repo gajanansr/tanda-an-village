@@ -69,8 +69,9 @@ export class Village {
       thatch: () => mat(TEX.thatch(), { roughness: 1 }),
       wood: () => mat(TEX.wood()),
       stone: () => mat(TEX.stone()),
-      blue: () => new THREE.MeshStandardMaterial({ color: "#2f6a9a", roughness: 0.7 }),
-      dark: () => new THREE.MeshStandardMaterial({ color: "#2a2018", roughness: 1 }),
+      blue: () => mat(TEX.plaster(), { color: "#3a78b0", roughness: 0.6 }), // lime-blue paint, a little uneven
+      dark: () => new THREE.MeshStandardMaterial({ color: "#1a1410", roughness: 1 }),
+      iron: () => new THREE.MeshStandardMaterial({ color: "#2b2b2e", roughness: 0.5, metalness: 0.6 }),
       saffron: () => mat(TEX.cloth("#e07a26", "#f2a24a"), { side: THREE.DoubleSide }),
       blueCloth: () => mat(TEX.cloth("#2f6aa6", "#5b93c8"), { side: THREE.DoubleSide }),
       whiteStone: () => mat(TEX.plaster(), { color: "#fbf6ec", roughness: 0.85 }),
@@ -143,8 +144,24 @@ export class Village {
       const fx = cx + sx * (w / 2 + depth / 2) + (sx ? 0 : along), fz = cz + sz * (d / 2 + depth / 2) + (sz ? 0 : along);
       this.box(key, M[key], sx ? depth : ww, hh, sx ? ww : depth, fx, y + 0.3 + up, fz);
     };
-    face(side[0], side[1], 0, 1.05, 1.25, 2.1, "blue", 0.08);
-    face(side[0], side[1], 0, 1.0, 0.95, 1.95, "wood", 0.1);
+    // place a box in a wall's own frame: u along the wall, v up from the floor, n out from the face
+    const onWall = (sx: number, sz: number, u: number, v: number, n: number, bu: number, bv: number, bn: number, key: string, ry = 0) => {
+      const ox = sx ? sx * (w / 2 + n) : u, oz = sz ? sz * (d / 2 + n) : u;
+      const wallRy = sx ? Math.PI / 2 : 0;
+      this.box(key, M[key], bu, bv, bn, cx + ox, y + 0.3 + v, cz + oz, wallRy + ry * (sx || sz));
+    };
+    {
+      // the door: a deep opening in a painted frame, two plank leaves (one ajar), iron studs, a sill
+      const [sx, sz] = side;
+      onWall(sx, sz, 0, 1.05, 0.02, 1.22, 2.12, 0.05, "dark"); // the opening's dark depth
+      for (const u of [-0.64, 0.64]) onWall(sx, sz, u, 1.07, 0.04, 0.1, 2.16, 0.1, "blue"); // jambs
+      onWall(sx, sz, 0, 2.18, 0.04, 1.4, 0.12, 0.12, "blue"); // lintel
+      onWall(sx, sz, 0, 0.03, 0.12, 1.4, 0.06, 0.26, "stone"); // the stone sill
+      for (let i = 0; i < 4; i++) onWall(sx, sz, -0.43 + i * 0.145, 1.05, 0.03, 0.135, 2.0, 0.05, "wood"); // closed leaf: planks
+      for (let i = 0; i < 4; i++) onWall(sx, sz, 0.08 + i * 0.145 + 0.13, 1.05, 0.22 + i * 0.07, 0.135, 2.0, 0.05, "wood", -0.55); // the leaf left ajar
+      for (const v of [0.35, 1.0, 1.7]) onWall(sx, sz, -0.29, v, 0.06, 0.58, 0.07, 0.02, "dark"); // iron straps across the planks
+      onWall(sx, sz, -0.05, 1.05, 0.08, 0.06, 0.06, 0.04, "gold"); // the brass kadi (door chain)
+    }
     // a Banjara toran over the door: an embroidered, mirror-studded hanging with little tassels
     face(side[0], side[1], 0, 2.25, 1.35, 0.22, "toran", 0.12);
     for (let i = -2; i <= 2; i++) face(side[0], side[1], i * 0.28, 2.02, 0.07, 0.22, i % 2 ? "tasselA" : "tasselB", 0.13);
@@ -154,8 +171,13 @@ export class Village {
       if (sx === side[0] && sz === side[1]) continue;
       const span = sx ? d : w;
       for (const off of span > 5 ? [-span / 4, span / 4] : [0]) {
-        face(sx, sz, off, 1.6, 0.95, 0.9, "blue", 0.07);
-        face(sx, sz, off, 1.6, 0.7, 0.66, "dark", 0.09);
+        // a village window: a recess, a painted frame, iron bars, and two wooden shutters swung open
+        onWall(sx, sz, off, 1.6, 0.01, 0.74, 0.7, 0.04, "dark");
+        for (const u of [-0.42, 0.42]) onWall(sx, sz, off + u, 1.6, 0.04, 0.09, 0.9, 0.08, "blue");
+        for (const v of [1.12, 2.08]) onWall(sx, sz, off, v, 0.04, 0.93, 0.09, 0.08, "blue");
+        for (let i = -2; i <= 2; i++) onWall(sx, sz, off + i * 0.14, 1.6, 0.05, 0.022, 0.72, 0.022, "iron"); // the bars
+        onWall(sx, sz, off, 2.22, 0.18, 1.15, 0.05, 0.36, "stone"); // a small sunshade (chhajja) above
+        for (const k of [-1, 1]) onWall(sx, sz, off + k * 0.66, 1.6, 0.17, 0.4, 0.86, 0.035, "blue", k * 1.25); // shutters, opened back
       }
     }
     // hip roof with deep eaves
@@ -178,7 +200,7 @@ export class Village {
   private godown(s: Extract<Structure, { kind: "godown" }>, M: Record<string, () => THREE.Material>) {
     const { x0, z0, w, d, y } = s;
     const cx = x0 + w / 2, cz = z0 + d / 2, H = 3, P = 0.5;
-    if (!M.tin) M.tin = () => new THREE.MeshStandardMaterial({ color: "#8e979b", roughness: 0.45, metalness: 0.6 });
+    if (!M.tin) M.tin = () => mat(TEX.tin(), { roughness: 0.5, metalness: 0.55, side: THREE.DoubleSide });
     if (!M.steel) M.steel = () => new THREE.MeshStandardMaterial({ color: "#3f6b4f", roughness: 0.6, metalness: 0.3 });
     this.box("stone", M.stone, w + 0.4, P, d + 0.4, cx, y + P / 2 - 0.1, cz);
     this.box("brick", M.brick, w, H, d, cx, y + P + H / 2 - 0.1, cz);

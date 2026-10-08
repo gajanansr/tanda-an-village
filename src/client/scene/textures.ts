@@ -240,9 +240,36 @@ export const TEX = {
       g.fillRect(0, 0, s, s);
       g.fillStyle = stripe;
       for (let x = 0; x < s; x += s / 4) g.fillRect(x, 0, s / 10, s);
-      g.fillStyle = "rgba(0,0,0,0.08)";
-      for (let y = 0; y < s; y += 4) g.fillRect(0, y, s, 1);
-    }),
+      // the weave, and sun-fading and grime toward one edge (awnings bleach where the sun hits)
+      for (let y = 0; y < s; y += 2) { g.fillStyle = `rgba(0,0,0,${y % 4 ? 0.05 : 0.11})`; g.fillRect(0, y, s, 1); }
+      for (let x = 0; x < s; x += 2) { g.fillStyle = "rgba(255,255,255,0.04)"; g.fillRect(x, 0, 1, s); }
+      const fade = g.createLinearGradient(0, 0, 0, s);
+      fade.addColorStop(0, "rgba(255,250,235,0.16)");
+      fade.addColorStop(1, "rgba(60,40,20,0.12)");
+      g.fillStyle = fade;
+      g.fillRect(0, 0, s, s);
+    }, [1, 1], 0.8),
+  /** Corrugated galvanised tin: ridges, a dull zinc sheen, rust bleeding from the nail lines. */
+  tin: () =>
+    make("tin", 256, (g, s, r) => {
+      for (let x = 0; x < s; x++) {
+        const k = Math.sin((x / s) * Math.PI * 2 * 12) * 0.5 + 0.5; // twelve corrugations across
+        const v = Math.floor(118 + k * 70);
+        g.fillStyle = `rgb(${v},${v + 4},${v + 8})`;
+        g.fillRect(x, 0, 1, s);
+      }
+      blotch(g, s, r, 30, "rgba(120,60,25,0.22)", 6, 26); // rust
+      g.fillStyle = "#5a5048"; // nail heads along the purlins
+      for (const y of [s * 0.08, s * 0.92]) for (let x = s / 24; x < s; x += s / 12) g.fillRect(x - 1, y - 1, 3, 3);
+      for (let i = 0; i < 24; i++) { // streaks running down from the nails
+        const x = r() * s, l = 30 + r() * 90;
+        const grd = g.createLinearGradient(0, s * 0.08, 0, s * 0.08 + l);
+        grd.addColorStop(0, "rgba(130,62,22,0.35)");
+        grd.addColorStop(1, "rgba(130,62,22,0)");
+        g.fillStyle = grd;
+        g.fillRect(x, s * 0.08, 3, l);
+      }
+    }, [1, 1], 3),
 };
 
 export function mat(map: THREE.Texture, opts: THREE.MeshStandardMaterialParameters = {}) {

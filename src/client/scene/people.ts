@@ -159,8 +159,13 @@ export class Person {
     });
   }
 
-  /** speed in m/s: idle below a stroll, walk, then run; the steps keep pace with the ground. */
-  update(dt: number, speed: number) {
+  /** A held pose the clips don't have: sitting (on a chair or a bus seat), or sitting at a keyboard. */
+  pose: "none" | "sit" | "type" = "none";
+
+  /** speed in m/s: idle below a stroll, walk, then run; the steps keep pace with the ground. `bank` tilts the body into a turn. */
+  update(dt: number, speed: number, bank = 0) {
+    this.root.rotation.z = bank;
+    if (this.pose !== "none") speed = 0;
     const ramp = (a: number, b: number, x: number) => Math.min(1, Math.max(0, (x - a) / (b - a)));
     const moving = ramp(0.1, 0.6, speed), running = ramp(2.6, 4.5, speed);
     this.idle.setEffectiveWeight(1 - moving);
@@ -169,6 +174,36 @@ export class Person {
     this.walk.setEffectiveTimeScale(THREE.MathUtils.clamp(speed / 1.35, 0.55, 2.2)); // the clip walks at ~1.35 m/s
     this.run.setEffectiveTimeScale(THREE.MathUtils.clamp(speed / 3.6, 0.7, 1.6));
     this.mixer.update(dt);
+    this.root.position.y = 0;
+    if (this.pose !== "none") this.sitPose(this.pose === "type");
+  }
+
+  /**
+   * Sit, on top of the idle clip: thighs forward, shins down, the body lowered until the feet meet the
+   * floor (so the seat is at knee height); at a keyboard the forearms reach forward too. Each bone is
+   * turned about the body's own left–right axis, whatever its rest orientation.
+   */
+  private sitPose(typing: boolean) {
+    const bone = (n: string) => this.bones.get(`Bip01_${n}`);
+    this.root.updateMatrixWorld(true);
+    const side = new THREE.Vector3(1, 0, 0).applyQuaternion(this.root.getWorldQuaternion(Q));
+    const turn = (b: THREE.Object3D | undefined, angle: number) => {
+      if (!b?.parent) return;
+      const pw = b.parent.getWorldQuaternion(new THREE.Quaternion());
+      const r = new THREE.Quaternion().setFromAxisAngle(side, angle);
+      b.quaternion.premultiply(pw.clone().invert().multiply(r).multiply(pw));
+      b.updateMatrixWorld(true);
+    };
+    for (const s of ["L", "R"]) {
+      turn(bone(`${s}_Thigh`), -Math.PI / 2 + 0.08);
+      turn(bone(`${s}_Calf`), Math.PI / 2 - 0.05);
+      turn(bone(`${s}_UpperArm`), typing ? -0.95 : -0.35);
+      turn(bone(`${s}_Forearm`), typing ? -0.75 : -0.95);
+    }
+    if (typing) turn(bone("Head"), 0.18); // eyes on the screen
+    // lower the body: the thighs are now level at hip height, so the feet hang a shin's length below it
+    const hip = this.rest.get("Bip01_L_Thigh")?.p.y ?? 0.9, knee = this.rest.get("Bip01_L_Calf")?.p.y ?? 0.5;
+    this.root.position.y = -(hip - knee) + 0.02;
   }
 
   setShadow(on: boolean) {

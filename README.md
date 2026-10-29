@@ -4,7 +4,9 @@
 
 Your home is **Rathod Bhuvan**, an old two-storey wooden wada at the edge of the village.
 
-You come home from the city to your Dada's fallow field. Plough the black soil, grow jowar, onion
+It opens in Pune: HR walks up to your desk, and eight years end in a cardboard box. You walk Swargate
+ST stand, buy a transistor radio for the road, and ride the Lal Pari (the red ST bus) through the
+night to your Dada's fallow field. Plough the black soil, grow jowar, onion
 and sugarcane, carry water from the vihir, cart your harvest to the mandi the old Banjara caravan
 way, buy land, stand in the panchayat election, and lead your bulls in the Bail Pola procession.
 
@@ -52,8 +54,15 @@ Created by **[Gajanan Rathod](https://github.com/gajanansr)**.
   a bamboo gal. Cast, strike when the float dips, and play the fish in without snapping the line.
 - **Banjara culture.** Mirror-work ghaghras, bangles and coin-edged odhnis, torans over the doors,
   Teej sprout baskets, and the Naik who heads the tanda.
+- **Festivals every year.** Nine of them: Vasantrao Naik Jayanti (Krushi Din), Ganeshotsav with a
+  pandal in the chowk, Dasara, Dawali, Makar Sankranti, Sevalal Jayanti, Shivaji Jayanti at the
+  Shivaji Maharaj putla by the village gate, Holi and Gudi Padwa. Each has its own decorations and its
+  own thing to do, and greetings and gifts count double that day. To add 3D scans of the statues,
+  see [docs/statues.md](docs/statues.md).
 - **Saves and a leaderboard.** You start instantly as a guest, and signing in with Google or email
   keeps your farm on any device. A public leaderboard ranks farmers by net worth.
+- **Tanda FM.** The transistor radio you bought for the bus ride plays Marathi and Banjari songs
+  (B to switch it on, N for the next one). See [docs/radio.md](docs/radio.md) to add songs.
 - **Look and sound.** Smooth terrain, wind-blown grass, painted skies, bloom and colour grading.
   Every sound is synthesized in WebAudio.
 
@@ -76,6 +85,8 @@ Created by **[Gajanan Rathod](https://github.com/gajanansr)**.
 | **L** | leaderboard |
 | **V** | first / third person |
 | **T** | torch |
+| **B** | radio on / off (Tanda FM) |
+| **N** | next song on the radio |
 | **R** | cart |
 | **F** | feed or decorate the bulls |
 | **G** / **P** | tie the bulls / let them plough the field |

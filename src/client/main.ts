@@ -41,6 +41,9 @@ import { FIRESIDE, Nights } from "./nights";
 import { Infrastructure } from "./scene/infrastructure";
 import { Nav, separate } from "./player/nav";
 import { Audio, renderRms, SOUNDS } from "./audio";
+import { Prologue } from "./prologue/prologue";
+import { Radio } from "./radio";
+import { RadioPanel } from "./ui/radiopanel";
 import { forDevice, Guide } from "./ui/guide";
 import { Leaderboard } from "./ui/leaderboard";
 import { PhoneMenu } from "./ui/phonemenu";
@@ -268,6 +271,9 @@ applyUiScale(settings);
 applyMotion(settings);
 controls.sensitivity = settings.sensitivity;
 audio.setVolume(settings.volume);
+const radio = new Radio();
+radio.setVolume(settings.volume);
+document.addEventListener("visibilitychange", () => radio.setPaused(document.hidden));
 const titleScreen = new TitleScreen(uiRoot);
 const settingsPanel = new SettingsPanel(uiRoot, settings);
 const guide = new Guide(uiRoot, scene, (x, z) => hf.at(x, z));
@@ -286,6 +292,7 @@ guide.onGoalDone = (title) => {
 settingsPanel.onChange = (st) => {
   controls.sensitivity = st.sensitivity;
   audio.setVolume(st.volume);
+  radio.setVolume(st.volume);
   applyRenderDistance();
 };
 settingsPanel.onClose = () => hud.setPlaying(titleScreen.open);
@@ -300,6 +307,10 @@ function applyRenderDistance() {
 function enterGame(lock: boolean) {
   if (!titleScreen.open) return;
   titleScreen.hide();
+  beginPlay(lock);
+}
+/** Into the village, from the title screen or the end of the story. */
+function beginPlay(lock: boolean) {
   uiRoot.classList.remove("ui-title");
   mode = "play";
   arrived({ touch: TOUCH, lang: LANG_CODE, mission: game.save.missions.i });
@@ -313,10 +324,37 @@ function enterGame(lock: boolean) {
   }
   if (lock) canvas.requestPointerLock?.();
 }
-titleScreen.onPlay = () => {
-  // the first time: a short story card first, then into the village
-  if (!guide.showWelcome(uiRoot, () => enterGame(true))) enterGame(true);
+// the story before the village: the office in Pune, Swargate ST stand, and the Lal Pari home
+const prologue = new Prologue(renderer, controls, uiRoot, radio, audio, TOUCH, () => settings.volume);
+const welcomed = () => {
+  try {
+    return !!localStorage.getItem("tanda.welcomed");
+  } catch {
+    return true;
+  }
 };
+function startStory() {
+  if (titleScreen.open) titleScreen.hide();
+  uiRoot.classList.remove("ui-title");
+  uiRoot.classList.add("ui-prologue");
+  closeWindows();
+  audio.unlock();
+  hud.setPlaying(true);
+  if (TOUCH) document.documentElement.requestFullscreen?.().then(() => (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }).lock?.("landscape")).catch(() => {});
+  prologue.start();
+}
+prologue.onDone = () => {
+  try {
+    localStorage.setItem("tanda.welcomed", "1");
+  } catch {
+    /* ignore */
+  }
+  uiRoot.classList.remove("ui-prologue");
+  beginPlay(true);
+};
+// the first time, the story plays before the village; after that it's on the title screen
+titleScreen.onPlay = () => (welcomed() ? enterGame(true) : startStory());
+titleScreen.onStory = startStory;
 titleScreen.onSettings = () => settingsPanel.show();
 const board = new Leaderboard(uiRoot, () => net.token);
 board.onClose = () => (titleScreen.open ? hud.setPlaying(true) : resumePlay());
@@ -333,6 +371,17 @@ const showBoard = () => {
   releaseMouse();
 };
 titleScreen.onBoard = showBoard;
+// Tanda FM: the station window (B), with every song, and the now-playing pill
+const radioPanel = new RadioPanel(uiRoot, radio);
+radio.onChange = () => radioPanel.render();
+const showRadio = () => {
+  closeWindows();
+  radioPanel.show();
+  hud.setPlaying(true);
+  releaseMouse();
+};
+radioPanel.onOpenRequest = showRadio;
+radioPanel.onClose = () => (titleScreen.open ? hud.setPlaying(true) : resumePlay());
 const showSettings = settingsPanel.show.bind(settingsPanel);
 settingsPanel.show = () => {
   closeWindows();
@@ -384,6 +433,7 @@ const WINDOWS = () => [
   { open: () => summary.open, close: () => summary.close() },
   { open: () => howto.open, close: () => howto.close() },
   { open: () => hud.logOpen, close: () => hud.closeLog() },
+  { open: () => radioPanel.open, close: () => radioPanel.close() },
 ];
 function closeWindows() {
   switching = true;
@@ -393,7 +443,7 @@ function closeWindows() {
 function windowOpen() {
   return !!ploughJob || WINDOWS().some((w) => w.open()) || guide.dialogueOpen || !!document.querySelector(".welcome, .fs-gate:not([hidden])");
 }
-phoneMenu.onPick = (what) => (what === "log" ? showLogWindow() : what === "account" ? showAccount() : what === "map" ? showMap() : what === "board" ? showBoard() : what === "help" ? controls.onHelp() : what === "view" ? controls.onView() : what === "torch" ? controls.onTorch() : settingsPanel.show());
+phoneMenu.onPick = (what) => (what === "log" ? showLogWindow() : what === "account" ? showAccount() : what === "map" ? showMap() : what === "board" ? showBoard() : what === "help" ? controls.onHelp() : what === "view" ? controls.onView() : what === "torch" ? controls.onTorch() : what === "radio" ? showRadio() : settingsPanel.show());
 phoneMenu.onClose = () => resumePlay();
 // tapping the dark area round a window closes it (not story cards: those need their buttons)
 uiRoot.addEventListener("click", (e) => {
@@ -1524,6 +1574,9 @@ controls.onTorch = () => {
   hud.toast(torchOn ? "Torch on" : "Torch off");
   audio.play("buy");
 };
+radio.onNotice = (m) => hud.toast(m);
+controls.onRadio = () => (radioPanel.open ? radioPanel.close() : showRadio());
+controls.onRadioNext = () => void radio.next();
 controls.onView = () => {
   rig.view = rig.view === "third" ? "first" : "third";
   hud.toast(rig.view === "third" ? "Third person" : "First person");
@@ -1534,7 +1587,13 @@ controls.onFeed = () => void (!windowOpen() && feedBulls());
 document.querySelector(".play-prompt")!.addEventListener("click", (e) => {
   if (!(e.target as HTMLElement).closest(".account")) canvas.requestPointerLock?.();
 });
+// while the story plays, keys and buttons belong to it: only talking and the radio do anything
+for (const k of ["onDig", "onPlace", "onSelect", "onScroll", "onMap", "onBoard", "onKaam", "onHelp", "onPloughField", "onTie", "onSleep", "onTorch", "onView", "onRide", "onFeed", "onInteract", "onRadio", "onRadioNext", "onEscape"] as const) {
+  const f = controls[k] as (...a: unknown[]) => void;
+  (controls as unknown as Record<string, (...a: unknown[]) => void>)[k] = (...a) => (prologue.active ? prologue.key(k) : f(...a));
+}
 controls.onLockChange = (locked) => {
+  if (prologue.active) return hud.setPlaying(true);
   if (locked) enterGame(false);
   if (locked) {
     mode = "play";
@@ -1613,6 +1672,7 @@ function resize() {
   post.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
+  prologue.setSize(w, h);
 }
 window.addEventListener("resize", resize);
 window.addEventListener("orientationchange", () => setTimeout(resize, 250));
@@ -1635,6 +1695,12 @@ renderer.setAnimationLoop(() => {
   controls.pitchMin = rig.view === "third" ? -0.85 : -1.55;
   controls.pitchMax = rig.view === "third" ? 0.15 : 1.55;
   controls.applyLook();
+  if (prologue.active) {
+    // the story before the village is its own little world, drawn instead of the village
+    prologue.frame(dt);
+    if (touch) touch.visible = prologue.walking;
+    return;
+  }
   farmyard.set(!!game.save.bulls, !!game.save.inv.cart);
   farmyard.mistryAt = helpers.cartRun(); // the mistry driving the cart to the mandi and back
   const tb = game.save.bulls?.tied;
@@ -2117,6 +2183,9 @@ Promise.all([booted, workerReady]).then(async ([boot]) => {
     ploughing: () => !!ploughJob,
     // test hook: tap through any story card that's showing (they're tested in missions.js)
     autoSkipStory: (on: boolean) => (autoSkip = on),
+    // the prologue: start it, or jump to a moment in one of its acts
+    story: (act?: "office" | "stand" | "ride", t = 0) => (act ? prologue.seek(act, t) : startStory()),
+    storyWalk: (x: number, z: number, press = true) => (prologue.walkTo(x, z), press && prologue.key("onInteract"), document.querySelector(".pl-sub")?.textContent),
     skipStory: () => {
       let n = 0;
       for (let b = document.querySelector(".dialogue button") as HTMLButtonElement | null; b && n < 5; b = document.querySelector(".dialogue button"), n++) b.click();

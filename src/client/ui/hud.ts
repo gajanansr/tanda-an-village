@@ -49,7 +49,16 @@ export class Hud {
     this.paintBell();
   }
 
+  private barTimer = 0;
+  /** The hotbar fades back while you're not using it; switching tools or a change in stock wakes it. */
+  private wakeBar() {
+    this.bar.classList.add("awake");
+    clearTimeout(this.barTimer);
+    this.barTimer = window.setTimeout(() => this.bar.classList.remove("awake"), 3500);
+  }
+
   refresh() {
+    this.wakeBar();
     [...this.bar.children].forEach((c, i) => c.classList.toggle("on", i === this.hotbar.selected));
     this.label.textContent = slotName(this.hotbar.current);
     this.label.classList.add("show");
@@ -58,7 +67,11 @@ export class Hud {
   }
 
   /** Hotbar badges and the goods chip from the inventory. */
+  private stock = "";
   setInventory(inv: Record<string, number>, canMax: number) {
+    const stock = this.hotbar.slots.map((s) => (s.kind === "seed" ? inv[`seed:${s.crop}`] : s.kind === "block" ? inv[`block:${s.block}`] : s.kind === "tool" && s.tool === "can" ? inv.water : 0) ?? 0).join();
+    if (this.stock && stock !== this.stock) this.wakeBar();
+    this.stock = stock;
     const water = this.hotbar.slots.findIndex((s) => s.kind === "tool" && s.tool === "can");
     if (water >= 0) this.counts[water].title = `${inv.water ?? 0} / ${canMax}`;
     this.hotbar.slots.forEach((s, i) => {
@@ -183,6 +196,7 @@ export class Hud {
       this.bell.addEventListener("click", () => this.showLog());
     }
     this.bell.innerHTML = `🔔${this.unread ? `<b>${Math.min(99, this.unread)}</b>` : ""}`;
+    this.bell.classList.toggle("quiet", !this.unread); // nothing new: the bell steps back
   }
   private record(msg: string, kind: "ok" | "bad") {
     const last = this.log[this.log.length - 1];

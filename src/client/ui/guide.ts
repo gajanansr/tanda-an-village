@@ -43,10 +43,11 @@ export const forDevice = (t: string) =>
 const seen = (id: string) => { try { return localStorage.getItem(`tanda.mission.${id}`) === "1"; } catch { return false; } };
 const markSeen = (id: string) => { try { localStorage.setItem(`tanda.mission.${id}`, "1"); } catch { /* ignore */ } };
 import type { Save } from "../../shared/save";
+
 import type { World } from "../../shared/world";
 
 /*
- * Making the game easy to follow: a welcome card, a chain of goals (each checked from the save),
+ * Making the game easy to follow: a chain of goals (each checked from the save),
  * a golden marker in the world with an on-screen arrow and distance, and a help card (H).
  */
 type Ctx = { world: World; now: number; day: number; onOwnLand: boolean; me?: { x: number; z: number } };
@@ -85,7 +86,6 @@ export class Guide {
   private card: HTMLElement;
   private arrow: HTMLElement;
   private help: HTMLElement;
-  private welcome: HTMLElement | null = null;
   private marker: THREE.Group;
   private beam: THREE.Mesh;
   private target: { x: number; y: number; z: number; label: string } | null = null;
@@ -102,6 +102,8 @@ export class Guide {
   nearChoice = false;
   onToast: (m: string, k: "ok" | "bad") => void = () => {};
   private cardHtml = "";
+  private task = "";
+  private freshTimer = 0;
   helpOpen = false;
   onGoalDone: (title: string) => void = () => {};
 
@@ -138,30 +140,6 @@ export class Guide {
     this.marker.add(this.beam, gem);
     this.marker.visible = false;
     scene.add(this.marker);
-  }
-
-  /** The first-time story card. Resolves when the player is ready. */
-  showWelcome(parent: HTMLElement, onGo: () => void) {
-    try {
-      if (localStorage.getItem("tanda.welcomed")) return false;
-    } catch {
-      /* ignore */
-    }
-    this.welcome = el("div", "panel welcome", parent);
-    this.welcome.innerHTML = `<div class="panel-card"><h2>Ram Ram! Welcome home to Ukhali Tanda</h2>
-      <p>Dada's field, <b>Aamrai</b>, is waiting for you. The card at the top left and the golden marker will show you each step.</p>
-      <div class="big-acts"><button data-go>Let's farm</button></div></div>`;
-    this.welcome.querySelector("[data-go]")!.addEventListener("click", () => {
-      try {
-        localStorage.setItem("tanda.welcomed", "1");
-      } catch {
-        /* ignore */
-      }
-      this.welcome?.remove();
-      this.welcome = null;
-      onGo();
-    });
-    return true;
   }
 
   toggleHelp(on = !this.helpOpen) {
@@ -257,6 +235,14 @@ export class Guide {
       this.target = next ? whereFor(m.id, next.id, c, save) : null;
     }
     if (html !== this.cardHtml) this.card.innerHTML = this.cardHtml = html;
+    // the card is one line until the task changes: then it opens for a few seconds to show what's new
+    const task = m ? `${m.id}:${progress(save, mc).find((o) => o.got < o.need)?.id ?? "done"}` : "end";
+    if (task !== this.task) {
+      this.task = task;
+      this.card.classList.add("fresh");
+      clearTimeout(this.freshTimer);
+      this.freshTimer = window.setTimeout(() => this.card.classList.remove("fresh"), 7000);
+    }
     // the marker and the edge-of-screen arrow
     // a waypoint you set on the map wins over the story's marker until you reach it
     const me = c.me ?? camera.position;

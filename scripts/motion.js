@@ -6,7 +6,7 @@
   g.play(); g.setHour(16.8); if (g.skipStory) { g.skipStory(); g.skipStory(); }
   for (let i = 0; i < 6; i++) {
     await wait(400);
-    document.querySelectorAll(".dialogue button, .welcome [data-go]").forEach((b) => b.click());
+    document.querySelectorAll(".dialogue button, .prologue [data-skip-all], .pl-end [data-go]").forEach((b) => b.click());
   }
   await wait(400);
   const p = g.player();

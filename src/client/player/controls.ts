@@ -24,6 +24,8 @@ export class Controls {
   onFeed: () => void = () => {};
   onView: () => void = () => {};
   onTorch: () => void = () => {};
+  onRadio: () => void = () => {};
+  onRadioNext: () => void = () => {};
   onHelp: () => void = () => {};
   onBoard: () => void = () => {};
   onKaam: () => void = () => {};
@@ -78,6 +80,8 @@ export class Controls {
       if (e.code === "KeyF" && !e.repeat) this.onFeed();
       if (e.code === "KeyV" && !e.repeat) this.onView();
       if (e.code === "KeyT" && !e.repeat) this.onTorch();
+      if (e.code === "KeyB" && !e.repeat) this.onRadio();
+      if (e.code === "KeyN" && !e.repeat) this.onRadioNext();
       if (e.code === "KeyH" && !e.repeat) this.onHelp();
       if (e.code === "KeyL" && !e.repeat) this.onBoard();
       if (e.code === "KeyK" && !e.repeat) this.onKaam();

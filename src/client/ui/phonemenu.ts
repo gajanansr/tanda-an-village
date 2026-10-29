@@ -5,7 +5,7 @@
 export class PhoneMenu {
   private el: HTMLElement;
   open = false;
-  onPick: (what: "map" | "board" | "help" | "settings" | "view" | "torch" | "account" | "log") => void = () => {};
+  onPick: (what: "map" | "board" | "help" | "settings" | "view" | "torch" | "radio" | "account" | "log") => void = () => {};
   onClose: () => void = () => {};
 
   constructor(parent: HTMLElement) {
@@ -37,6 +37,7 @@ export class PhoneMenu {
         <button data-m="log">🔔 Recent messages</button>
         <button data-m="view">Change view</button>
         <button data-m="torch">Torch on / off</button>
+        <button data-m="radio">📻 Tanda FM radio</button>
         <button data-m="board">Leaderboard</button>
         <button data-m="help">How to play</button>
         <button data-m="settings">Settings</button>

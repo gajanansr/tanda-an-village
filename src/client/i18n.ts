@@ -43,6 +43,7 @@ const D: Record<string, [string, string]> = {
   "Continue your farm": ["तुमचे शेत पुढे चालू करा", "अपना खेत जारी रखें"],
   Leaderboard: ["मानाचा फलक", "लीडरबोर्ड"],
   "The village": ["गाव", "गाँव"],
+  "The story": ["कथा", "कहानी"],
   Settings: ["सेटिंग्ज", "सेटिंग्स"],
   "Created by": ["निर्माते", "निर्माता"],
   "Preparing the village…": ["गाव तयार होत आहे…", "गाँव तैयार हो रहा है…"],

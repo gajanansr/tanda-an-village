@@ -164,4 +164,49 @@ describe("festivals, every year", () => {
     expect(s.inv.jowar).toBeUndefined();
     expect(Object.values(s.farm).every((c) => c.wetUntil > now)).toBe(true);
   });
+
+  it("Maharashtra's own festivals: each deed on its own day, once a year, with its reward", () => {
+    const at = (f: keyof typeof FESTIVALS, h: number) => (now = atHour(FESTIVALS[f].day, h));
+    at("naik", 10);
+    const s = newSave("n", world, now);
+    s.bonds = { lakshmi: { pts: 10 } };
+    const seed = s.inv["seed:jowar"] ?? 0, rep0 = s.rep;
+    expect(no(s, { t: "festival", what: "shivaji" })).toMatch(/Shivaji Jayanti/);
+    ok(s, { t: "festival", what: "garland" });
+    expect(s.inv["seed:jowar"]).toBe(seed + 10);
+    expect(no(s, { t: "festival", what: "garland" })).toMatch(/this year/);
+    at("ganesh", 10);
+    expect(no(s, { t: "festival", what: "aarti" })).toMatch(/after 7 pm/);
+    at("ganesh", 20);
+    ok(s, { t: "festival", what: "aarti" });
+    at("dasara", 9);
+    ok(s, { t: "festival", what: "puja" });
+    at("sankranti", 11);
+    ok(s, { t: "festival", what: "tilgul" });
+    expect(bondOf(s, "lakshmi").pts).toBe(13); // she knows you: til-gul warms her
+    expect(bondOf(s, "tulsa").pts).toBe(0);
+    at("shivaji", 16);
+    ok(s, { t: "festival", what: "shivaji" });
+    at("padwa", 14);
+    expect(no(s, { t: "festival", what: "gudi" })).toMatch(/morning/);
+    at("padwa", 8);
+    ok(s, { t: "festival", what: "gudi" });
+    expect(s.rep).toBe(rep0 + 6 + 6 + 5 + 3 + 10 + 5);
+    now = atHour(FESTIVALS.shivaji.day + YEAR_DAYS, 10); // next year, again
+    ok(s, { t: "festival", what: "shivaji" });
+  });
+
+  it("Dasara puja feeds and rests the bulls", () => {
+    now = atHour(FESTIVALS.dasara.day, 9);
+    const s = newSave("n", world, now);
+    s.bulls = { stamina: 20, mood: 30, fedAt: now - 3 * 86_400_000, updatedAt: now };
+    ok(s, { t: "festival", what: "puja" });
+    expect(s.bulls).toMatchObject({ stamina: 100, mood: 100, fedAt: now });
+  });
+
+  it("no two festivals share a day", () => {
+    const days = Object.values(FESTIVALS).map((f) => f.day);
+    expect(new Set(days).size).toBe(days.length);
+    expect(days.every((d) => d >= 0 && d < YEAR_DAYS)).toBe(true);
+  });
 });

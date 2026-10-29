@@ -1,0 +1,6 @@
+{
+  "shivaji": { "file": "shivaji.glb", "height": 3.6, "material": "bronze", "rotY": -1.5708 },
+  "naik": { "file": "naik.glb", "height": 1.85, "material": "bronze", "rotY": 0 },
+  "sevalal": { "file": "sevalal.glb", "height": 0.95, "material": "marble", "rotY": 0 },
+  "hanuman": { "file": "hanuman.glb", "height": 1.3, "material": "sindoor", "rotY": 0 }
+}

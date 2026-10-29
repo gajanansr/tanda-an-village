@@ -1,0 +1,11 @@
+{
+  "songs": [
+    { "file": "kali-mati.mp3", "title": "काळी माती माझी माती", "artist": "Tanda FM", "lang": "Marathi" },
+    { "file": "aaichya-kushit.mp3", "title": "आईच्या कुशीत", "artist": "Tanda FM", "lang": "Marathi" },
+    { "file": "goriyari-teej.mp3", "title": "गोरियारी तीज", "artist": "Tanda FM", "lang": "Banjari · Marathi" },
+    { "file": "kandyacha-rubab.mp3", "title": "कांद्याचा रुबाब", "artist": "Tanda FM", "lang": "Marathi" },
+    { "file": "sarja-rajacha-that.mp3", "title": "सर्जा राजाचा थाट", "artist": "Tanda FM", "lang": "Marathi" },
+    { "file": "lal-pari.mp3", "title": "लाल परीची घरवापसी", "artist": "Tanda FM", "lang": "Marathi" },
+    { "file": "shahar-sutla.mp3", "title": "खोक्यात बंद संसार", "artist": "Tanda FM", "lang": "Marathi" }
+  ]
+}

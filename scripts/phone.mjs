@@ -40,7 +40,11 @@ for (const [name, w, h] of SIZES) {
   await tap(".fs-gate [data-go]");
   await shot("2-title");
   await tap('[data-t="play"]');
-  if (await p.$(".welcome")) await tap(".welcome [data-go]");
+  // the story plays the first time: skip it, then close its end card
+  if (await p.$(".prologue:not([hidden])")) {
+    await tap(".prologue [data-skip-all]");
+    await tap(".pl-end [data-go]");
+  }
   await p.waitForTimeout(800);
   if (await p.$(".dialogue")) {
     check((await open()).length === 1, `${name}: the story card is the only thing open`);

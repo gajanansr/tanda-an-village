@@ -16,7 +16,7 @@ import { bondOf, ganpatBonus, GIFT_BOND, giftName, giftSize, giftTaste, GREET, h
 import { deskOn, requestsFor } from "./panchayat.js";
 import { COLLECT_EACH, dutyFor, DUTY_HONOUR, DUTY_REP, FRIEND_HEARTS, KARBHARI_FRIENDS, KARBHARI_REP, PANCH_DAYS, PANCH_REP, PANCH_VOTES, verdicts, WARD } from "./roles.js";
 import { closedText, isOpen } from "./hours.js";
-import { BHOG_N, BHOG_REP, DIYA_BOND, DIYA_REP, FEST_HOUR, FESTIVALS, festivalOn, gher, HOLIKA_REP, yearOf } from "./festivals.js";
+import { AARTI_REP, BHOG_N, BHOG_REP, DASARA_REP, DIYA_BOND, DIYA_REP, FEST_HOUR, FESTIVALS, festivalOn, gher, GUDI_HOUR, GUDI_REP, HOLIKA_REP, NAIK_REP, NAIK_SEED, SHIVAJI_REP, TILGUL_BOND, TILGUL_REP, type FestivalId, yearOf } from "./festivals.js";
 import { arriveAt, CANCEL_REFUND, cartAway, duskOf, HELPER_MIN_PLOTS, HELPERS, type HelperId, type HelperJob, hireDay, HIRE_MAX, type Hire, inSacks, isHelper, JOB_NAMES, MUKADAM, ORDER_BY, patchMs, restMs, sellTimes, WALK_MS } from "./helpers.js";
 
 /*
@@ -70,7 +70,7 @@ export type Action =
   | { t: "duty"; step: "take" | "choose" | "deliver" | "visit" | "finish"; choice?: string; who?: NeighbourId }
   | { t: "greet"; who: NeighbourId }
   | { t: "gift"; who: NeighbourId; item: string }
-  | { t: "festival"; what: "diyas" | "bhog" | "fire"; item?: CropId }
+  | { t: "festival"; what: FestivalDeed; item?: CropId }
   | { t: "orderHelper"; who: HelperId; job: HelperJob; plot: number; crop?: CropId; seeds?: number; load?: Record<string, number> };
 
 export type Result = { ok: true; msg?: string; gained?: Record<string, number> } | { ok: false; error: string };
@@ -544,6 +544,10 @@ function sarpanchDesk(save: Save, a: Extract<Action, { t: "panchayat" }>, now: n
   return { ok: true, msg: [ch.said, ...warmer].join(" · ") };
 }
 
+/** What you do on each festival, and which festival it belongs to. */
+export type FestivalDeed = "diyas" | "bhog" | "fire" | "garland" | "aarti" | "puja" | "tilgul" | "shivaji" | "gudi";
+const FEST_DEEDS: Record<FestivalDeed, FestivalId> = { diyas: "dawali", bhog: "sevalal", fire: "holi", garland: "naik", aarti: "ganesh", puja: "dasara", tilgul: "sankranti", shivaji: "shivaji", gudi: "padwa" };
+
 /** Greeting a neighbour, giving a gift, and the festivals. */
 function neighbourly(world: World, save: Save, a: Extract<Action, { t: "greet" | "gift" | "festival" }>, now: number): Result {
   const c = clock(now), fest = festivalOn(c.day), year = yearOf(c.day), twice = fest ? 2 : 1;
@@ -584,11 +588,12 @@ function neighbourly(world: World, save: Save, a: Extract<Action, { t: "greet" |
     return { ok: true, msg: `${said}${w ? ` · ${w}` : ""}` };
   }
   // the festivals
-  const need = { diyas: "dawali", bhog: "sevalal", fire: "holi" } as const;
-  const f = need[a.what];
+  const f = FEST_DEEDS[a.what];
   if (!f) return fail("What?");
   if (fest !== f) return fail(`That's for ${FESTIVALS[f].name}.`);
   if ((a.what === "diyas" || a.what === "fire") && c.hour < FEST_HOUR) return fail(a.what === "diyas" ? "Light the diyas after dark, after 7 pm." : "The Holi fire is lit after dark, after 7 pm.");
+  if (a.what === "aarti" && c.hour < FEST_HOUR) return fail("The aarti is in the evening, after 7 pm.");
+  if (a.what === "gudi" && c.hour >= GUDI_HOUR) return fail("The gudi goes up in the morning — next year, before noon.");
   if (save.fests?.[`${f}:${a.what}`] === year) return fail("You've done that this year.");
   if (a.what === "bhog") {
     if (!a.item || !isCrop(a.item)) return fail("Offer produce as bhog.");
@@ -606,6 +611,33 @@ function neighbourly(world: World, save: Save, a: Extract<Action, { t: "greet" |
   if (a.what === "fire") {
     save.rep += HOLIKA_REP;
     return { ok: true, msg: `You sing the lengi songs round the Holi fire till late · ★ +${HOLIKA_REP}` };
+  }
+  if (a.what === "garland") {
+    save.rep += NAIK_REP;
+    save.inv["seed:jowar"] = (save.inv["seed:jowar"] ?? 0) + NAIK_SEED;
+    return { ok: true, msg: `You garland Vasantrao Naik's putla; the krushi sevak hands you ${NAIK_SEED} jowar seed · ★ +${NAIK_REP}` };
+  }
+  if (a.what === "aarti") {
+    save.rep += AARTI_REP;
+    return { ok: true, msg: `Ganpati Bappa Morya! You sing the aarti and share the modak · ★ +${AARTI_REP}` };
+  }
+  if (a.what === "puja") {
+    save.rep += DASARA_REP;
+    if (save.bulls) save.bulls = { ...save.bulls, fedAt: now, stamina: 100, mood: 100, updatedAt: now };
+    return { ok: true, msg: `Dasara puja: kumkum on your tools${save.bulls ? ", and Sarja and Raja fed and garlanded" : ""} · ★ +${DASARA_REP}` };
+  }
+  if (a.what === "tilgul") {
+    save.rep += TILGUL_REP;
+    for (const id of NEIGHBOUR_IDS) if (bondOf(save, id).pts > 0) befriend(save, id, TILGUL_BOND, c.day);
+    return { ok: true, msg: `Tilgul ghya, god god bola! · ★ +${TILGUL_REP} · every neighbour who knows you warms to you` };
+  }
+  if (a.what === "shivaji") {
+    save.rep += SHIVAJI_REP;
+    return { ok: true, msg: `Jai Bhavani, Jai Shivaji! You garland Chhatrapati Shivaji Maharaj's putla · ★ +${SHIVAJI_REP}` };
+  }
+  if (a.what === "gudi") {
+    save.rep += GUDI_REP;
+    return { ok: true, msg: `The gudi stands tall over Rathod Bhuvan: a happy new year! · ★ +${GUDI_REP}` };
   }
   save.rep += BHOG_REP;
   return { ok: true, msg: `Sevalal Maharaj's blessing: rain falls on all your fields · ★ +${BHOG_REP}` };

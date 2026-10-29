@@ -8,7 +8,7 @@ import { type Kind, loadPerson, Person, REALISTIC } from "./people";
  * One rig for the farmer and everyone in the village; `animate` swings limbs from a walk phase.
  * Faces +z, feet at the origin, about 1.7 m tall.
  */
-export type Look = { kurta: string; dhoti: string; hat: string; hatStyle: "pheta" | "topi" | "odhni" | "none"; skin: string; tail?: string; woman?: boolean; modern?: boolean };
+export type Look = { kurta: string; dhoti: string; hat: string; hatStyle: "pheta" | "topi" | "odhni" | "none"; skin: string; tail?: string; woman?: boolean; modern?: boolean; body?: Kind };
 
 /** A Banjara woman: mirror-work ghaghra, embroidered kanchali, a coin-edged odhni over the head, arms stacked with bangles. */
 export const banjaraWoman = (skirt: string, odhni: string): Look => ({ kurta: "#1f5a52", dhoti: skirt, hat: odhni, hatStyle: "odhni", skin: "#9a6240", woman: true });
@@ -337,7 +337,7 @@ export class Figure {
   private personKind: Kind;
 
   constructor(look: Look) {
-    this.personKind = look.modern ? "hero" : look.woman ? "villager_f" : "villager_m";
+    this.personKind = look.body ?? (look.modern ? "hero" : look.woman ? "villager_f" : "villager_m");
     if (REALISTIC)
       loadPerson(this.personKind).then((m) => {
         this.person = new Person(m);
@@ -673,7 +673,7 @@ export class Figure {
 
   /** speed in m/s drives the gait; call every frame. */
   /** What a villager is doing: the arms and body pose on top of the walk. */
-  action: "none" | "hoe" | "bend" | "carry" | "sit" | "draw" | "pour" | "fish" | "reel" | "crouch" | "cheer" = "none";
+  action: "none" | "hoe" | "bend" | "carry" | "sit" | "draw" | "pour" | "fish" | "reel" | "crouch" | "cheer" | "type" = "none";
   private props = new Map<string, THREE.Object3D>();
   private restZ?: number[];
 
@@ -751,11 +751,14 @@ export class Figure {
     if (this.person) {
       // the realistic model walks, runs and idles; for work poses it doesn't have, the modelled figure takes over
       // (props hang on the modelled figure's hands, so anyone holding something uses it too)
-      const real = this.action === "none" && ![...this.props.values()].some((p) => p.visible);
+      const real = (this.action === "none" || this.action === "sit" || this.action === "type") && ![...this.props.values()].some((p) => p.visible);
       this.person.root.visible = real;
       this.body.visible = !real;
       if (real) {
-        this.person.update(dt, speed);
+        // the player leans the whole body into a turn, pivoting at the feet like a runner on a bend
+        this.lean += (this.bank(speed, motion.turn) - this.lean) * (1 - Math.exp(-12 * dt));
+        this.person.pose = this.action === "sit" || this.action === "type" ? this.action : "none";
+        this.person.update(dt, speed, this.lean);
         return;
       }
     }
@@ -882,6 +885,16 @@ export class Figure {
       const c = Math.abs(Math.sin(this.t * 5));
       this.shoulders[0].rotation.x = this.shoulders[1].rotation.x = -2.8 + c * 0.3;
       this.body.position.y += c * 0.06;
+    } else if (this.action === "type") {
+      // sitting at a desk, forearms out to the keyboard, the hands busy
+      this.hips[0].rotation.x = this.hips[1].rotation.x = -1.5;
+      this.knees[0].rotation.x = this.knees[1].rotation.x = 1.5;
+      this.body.position.y = -0.45;
+      this.body.rotation.x = 0.08;
+      this.shoulders[0].rotation.x = -0.75 + Math.sin(this.t * 11) * 0.03;
+      this.shoulders[1].rotation.x = -0.75 + Math.sin(this.t * 9 + 1) * 0.03;
+      this.elbows[0].rotation.x = this.elbows[1].rotation.x = -0.85;
+      this.head.rotation.x = 0.12;
     } else if (this.action === "sit") {
       this.hips[0].rotation.x = this.hips[1].rotation.x = -1.5;
       this.knees[0].rotation.x = this.knees[1].rotation.x = 1.5;
@@ -895,6 +908,11 @@ export class Figure {
         this.elbows[0].rotation.x = -0.8;
       }
     }
+  }
+
+  /** How far to bank into a turn (radians about the forward axis, negative = to the left): more the faster you go. */
+  private bank(speed: number, turn = 0) {
+    return THREE.MathUtils.clamp(-turn * speed * (12 / 6.2) * 0.02, -0.25, 0.25);
   }
 
   /** The player's rig on top of the shared walk: feet, chest, lean, jump, and the swinging bag and gamcha. */
@@ -911,7 +929,7 @@ export class Figure {
     const sRun = ramp(2.2, 4.6, speed * toSadak), sSprint = ramp(5.5, 9.5, speed * toSadak);
     this.accelS += (accel - this.accelS) * k(10); // frame-to-frame speed is noisy; smooth it first
     const lean = THREE.MathUtils.clamp(this.accelS * 0.009 + sRun * 0.1 + sSprint * 0.12, -0.2, 0.3) * posed;
-    const bank = THREE.MathUtils.clamp(-(motion.turn ?? 0) * speed * toSadak * 0.02, -0.25, 0.25) * posed;
+    const bank = this.bank(speed, motion.turn) * posed;
     const pelvisRoll = s * (0.03 + 0.02 * sRun) * walking * posed;
     this.lean += (bank - this.lean) * k(12);
     this.body.rotation.x = lean * 0.4;

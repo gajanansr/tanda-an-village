@@ -688,3 +688,113 @@ small.why.shortage { background: rgba(158,214,122,.18); color: var(--good); }
 .minimap-foot { margin: 4px 0 0; text-align: center; font-size: 11px; color: var(--ink-2); }
 .minimap-foot kbd { font: 700 10px/1 ui-sans-serif, system-ui, sans-serif; padding: 2px 5px; border-radius: 4px; background: var(--gold); color: #2a1d12; }
 .is-touch .minimap { display: none; }
+
+/* ---- the story before the village (prologue) ---- */
+.ui-prologue > :not(.prologue):not(.hud):not(.touch) { display: none !important; }
+.ui-prologue .hud > :not(.toasts) { visibility: hidden; }
+.prologue { position: absolute; inset: 0; z-index: 50; pointer-events: none; color: #f6ead2; font-family: system-ui, sans-serif; }
+.prologue button { pointer-events: auto; }
+.pl-bar { position: absolute; left: 0; right: 0; height: 0; background: #000; transition: height 0.8s ease; }
+.pl-bar.top { top: 0; } .pl-bar.bottom { bottom: 0; }
+.prologue.cine .pl-bar { height: 9vh; }
+.pl-card { position: absolute; left: clamp(20px, 6vw, 80px); top: calc(9vh + 24px); display: flex; flex-direction: column; gap: 2px; opacity: 0; transform: translateY(6px); transition: opacity 0.9s, transform 0.9s; text-shadow: 0 2px 10px rgba(0,0,0,0.7); }
+.pl-card.on { opacity: 1; transform: none; }
+.pl-card b { font: 600 clamp(22px, 3vw, 34px) Georgia, serif; color: #fff4dc; }
+.pl-card span { font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: #ffd98a; }
+.pl-sub { position: absolute; left: 50%; bottom: calc(9vh + 18px); transform: translateX(-50%); max-width: min(760px, calc(100% - 32px)); padding: 9px 16px; border-radius: 8px; background: rgba(8,6,4,0.62); font-size: clamp(15px, 1.6vw, 19px); line-height: 1.45; text-align: center; opacity: 0; transition: opacity 0.35s; }
+.prologue.walk .pl-sub { bottom: 96px; }
+.pl-sub.on { opacity: 1; }
+.pl-sub b { color: #ffd98a; margin-right: 6px; }
+.pl-sub i { color: #efe3c8; }
+.pl-goal { position: absolute; left: 16px; top: 16px; max-width: 330px; padding: 10px 14px; border-radius: 10px; background: rgba(20,14,8,0.7); font-size: 14px; }
+.pl-goal:empty { display: none; }
+.pl-goal-head { font-weight: 700; color: #ffd98a; margin-bottom: 4px; }
+.pl-goal ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
+.pl-goal li.ok { opacity: 0.55; text-decoration: line-through; }
+.pl-goal li.opt { font-size: 13px; opacity: 0.8; }
+.pl-goal li.opt.ok { text-decoration: none; }
+.pl-hint { position: absolute; left: 50%; bottom: 40px; transform: translateX(-50%); padding: 6px 14px; border-radius: 8px; background: rgba(30,24,20,0.75); font-size: 15px; font-weight: 600; white-space: nowrap; }
+.pl-hint:empty { display: none; }
+.pl-hint kbd { background: rgba(255,236,200,0.14); color: #ffd98a; border: 1px solid rgba(255,236,200,0.3); border-radius: 4px; padding: 0 6px; }
+.pl-click { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 10px 18px; border-radius: 10px; background: rgba(20,14,8,0.72); font-weight: 600; opacity: 0; transition: opacity 0.4s; }
+.pl-click.on { opacity: 1; }
+.pl-skips { position: absolute; right: 16px; bottom: 14px; display: flex; gap: 8px; z-index: 2; }
+.pl-skips button { font: 600 12px system-ui; padding: 6px 12px; border-radius: 16px; border: 1px solid rgba(255,236,200,0.3); background: rgba(10,8,6,0.55); color: #f6ead2; cursor: pointer; }
+.pl-skips button:hover { background: rgba(60,40,20,0.8); }
+.pl-fade { position: absolute; inset: 0; background: #000; opacity: 0; transition: opacity 1.2s; }
+.pl-fade.on { opacity: 1; }
+.pl-end { position: absolute; inset: 0; display: grid; place-items: center; padding: 16px; pointer-events: auto; z-index: 3; }
+.pl-end-card { max-width: 560px; padding: 26px 30px; border-radius: 14px; background: rgba(38,26,16,0.92); border: 1px solid rgba(255,236,200,0.2); }
+.pl-end-card h2 { font: 600 26px Georgia, serif; margin: 2px 0 10px; color: #fff4dc; }
+.pl-end-card p { font-size: 15px; line-height: 1.55; }
+.pl-end-card .pl-tip { font-size: 14px; opacity: 0.85; }
+.pl-end-card kbd { background: rgba(255,236,200,0.14); color: #ffd98a; border-radius: 4px; padding: 0 5px; }
+.pl-where { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: #ffd98a; }
+.is-touch .pl-hint { bottom: 150px; }
+
+/* ---- a quieter screen: the world first, the HUD only where it's needed ---- */
+/* the task: one line at the top left; click it (or wait for a new task) for the whole checklist */
+body:not(.is-touch) .goal { top: 14px; left: 14px; width: auto; max-width: 330px; padding: 8px 12px 9px !important; gap: 2px; pointer-events: auto; cursor: pointer; background: rgba(22, 16, 10, 0.55) !important; backdrop-filter: blur(6px); box-shadow: none !important; transition: max-width 0.25s ease; }
+body:not(.is-touch) .goal:not(.open):not(.fresh) .goal-head,
+body:not(.is-touch) .goal:not(.open):not(.fresh) > small,
+body:not(.is-touch) .goal:not(.open):not(.fresh) .goal-missed,
+body:not(.is-touch) .goal:not(.open):not(.fresh) ul.objectives li:not(.now),
+body:not(.is-touch) .goal:not(.open):not(.fresh) small.how { display: none; }
+body:not(.is-touch) .goal:not(.open):not(.fresh) > b { font-size: 12px; font-family: system-ui; font-weight: 600; opacity: 0.7; }
+body:not(.is-touch) .goal:not(.open):not(.fresh) > b small { display: none; }
+body:not(.is-touch) .goal:not(.open):not(.fresh) ul.objectives { margin: 2px 0 0; }
+body:not(.is-touch) .goal:not(.open):not(.fresh) ul.objectives li { font-size: 14px; }
+/* money and the time: top right, nothing else unless it's a festival or you owe */
+body:not(.is-touch) .info { left: auto; right: 14px; top: 14px; transform: none; padding: 6px 12px; gap: 10px; background: rgba(22, 16, 10, 0.5) !important; }
+body:not(.is-touch) .info .title, body:not(.is-touch) .info .rep, body:not(.is-touch) .info .season { display: none; }
+body:not(.is-touch) .chip.goods { top: 54px; right: 14px; left: auto; transform: none; }
+/* the minimap: smaller and round, the label only on hover */
+body:not(.is-touch) .minimap { width: 148px; padding: 4px; border-radius: 50%; background: rgba(22, 16, 10, 0.45); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3); }
+body:not(.is-touch) .minimap-stage { border-radius: 50%; }
+body:not(.is-touch) .minimap-foot { position: absolute; left: 0; right: 0; bottom: -20px; opacity: 0; transition: opacity 0.2s; }
+body:not(.is-touch) .minimap:hover .minimap-foot { opacity: 1; }
+/* the hotbar: slimmer, and it fades back while you're not using it */
+body:not(.is-touch) .hotbar { bottom: 12px; padding: 4px; gap: 3px; background: rgba(22, 16, 10, 0.4) !important; opacity: 0.45; transition: opacity 0.6s ease; }
+body:not(.is-touch) .hotbar.awake, body:not(.is-touch) .hotbar:hover { opacity: 1; transition-duration: 0.15s; }
+body:not(.is-touch) .slot { width: 44px; height: 44px; }
+body:not(.is-touch) .slot canvas, body:not(.is-touch) .slot .icon svg { width: 34px; height: 34px; }
+body:not(.is-touch) .slot .key { display: none; }
+body:not(.is-touch) .slot-label { bottom: 70px; }
+/* a dot, not a cross */
+.crosshair { width: 6px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, 0.85); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35); }
+.crosshair::before, .crosshair::after { display: none; }
+/* the bell only speaks up when there's something new */
+.log-bell.quiet { opacity: 0.3; padding: 4px 7px; font-size: 13px; transition: opacity 0.2s; }
+.log-bell.quiet:hover { opacity: 0.9; }
+/* the marker's label: smaller */
+body:not(.is-touch) .goal-arrow { font-size: 12px; padding: 3px 9px; }
+
+/* ---- Tanda FM: the radio window and the now-playing pill ---- */
+.radio-panel { z-index: 35; }
+.radio-panel .panel-card { width: min(440px, calc(100vw - 32px)); }
+.radio-head { display: flex; align-items: center; gap: 12px; }
+.radio-dial { font-size: 34px; line-height: 1; }
+.radio-head h2 { margin: 0; }
+.radio-head .lede { margin: 2px 0 0; }
+.radio-acts { display: flex; justify-content: center; gap: 10px; margin: 14px 0 10px; }
+.radio-acts button { width: 46px; height: 46px; border-radius: 50%; border: 1px solid var(--line); background: rgba(255, 236, 200, 0.08); color: var(--gold-2); font-size: 18px; cursor: pointer; }
+.radio-acts button.main { width: 58px; height: 58px; font-size: 22px; background: var(--gold); color: #2a1d12; border: 0; }
+.radio-acts button:hover { filter: brightness(1.15); }
+.radio-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 46vh; overflow-y: auto; }
+.radio-list button { width: 100%; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 9px; border: 1px solid transparent; background: rgba(255, 236, 200, 0.05); color: inherit; font: 600 15px system-ui; text-align: left; cursor: pointer; }
+.radio-list button:hover { background: rgba(255, 236, 200, 0.12); }
+.radio-list button.on { border-color: var(--gold); background: rgba(240, 195, 106, 0.16); color: var(--gold-2); }
+.radio-list button.last { border-color: var(--line); }
+.radio-list small { font-weight: 500; opacity: 0.6; font-size: 12px; }
+.radio-list .empty { opacity: 0.7; padding: 8px; }
+.radio-panel .hint { margin-top: 10px; font-size: 12px; }
+.radio-pill { position: absolute; left: 14px; bottom: 58px; display: flex; align-items: center; gap: 8px; max-width: 240px; padding: 6px 12px 6px 10px; border-radius: 18px; border: 1px solid var(--line); background: rgba(22, 16, 10, 0.55); backdrop-filter: blur(6px); color: #f6ead2; font: 600 13px system-ui; cursor: pointer; pointer-events: auto; z-index: 6; }
+.radio-pill .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.radio-pill .eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+.radio-pill .eq i { width: 3px; background: var(--gold); border-radius: 1px; animation: eq 0.9s ease-in-out infinite; }
+.radio-pill .eq i:nth-child(2) { animation-delay: -0.3s; }
+.radio-pill .eq i:nth-child(3) { animation-delay: -0.6s; }
+@keyframes eq { 0%, 100% { height: 3px; } 50% { height: 12px; } }
+@media (prefers-reduced-motion: reduce) { .radio-pill .eq i { animation: none; height: 8px; } }
+.is-touch .radio-pill { left: calc(env(safe-area-inset-left) + 10px); bottom: auto; top: 54px; }
+.ui-title .radio-pill { display: none; }

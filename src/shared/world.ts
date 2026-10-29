@@ -47,7 +47,7 @@ export type Structure =
   | { kind: "school"; x0: number; z0: number; w: number; d: number; y: number } // the ZP school, verandah facing west
   | { kind: "pir"; x: number; z: number; y: number } // the pir: a roof on four posts, open on all sides
   | { kind: "tank"; x: number; z: number; y: number }
-  | { kind: "statue"; x: number; z: number; y: number; facing: number } // Vasantrao Naik, in bronze, in the chowk // the village's overhead water tank, on the tekdi top
+  | { kind: "statue"; who: "naik" | "shivaji"; x: number; z: number; y: number; facing: number } // Vasantrao Naik, and Shivaji Maharaj on horseback, in bronze, in the chowk // the village's overhead water tank, on the tekdi top
   | { kind: "plate"; x: number; z: number; y: number; facing: number; lines: string[]; color?: string }
   /** The godown: a long brick shed with a tin roof and wide doors on its west end (door at x0, z0 + d/2). */
   | { kind: "godown"; x0: number; z0: number; w: number; d: number; y: number }
@@ -439,7 +439,16 @@ export function generateWorld(seed = WORLD_SEED): World {
     const y = height[col(x, z)];
     for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) set(x + dx, y + 1, z + dz, B.COBBLE); // the pedestal, solid
     set(x, y + 2, z, B.COBBLE);
-    structures.push({ kind: "statue", x, z, y: y + 1, facing: 0 }); // facing the chowk
+    structures.push({ kind: "statue", who: "naik", x, z, y: y + 1, facing: 0 }); // facing the chowk
+  }
+  // at the village gate, where the lanes leave the Jalna road, Chhatrapati Shivaji Maharaj on horseback
+  // on a tall stone plinth, facing the road in (the "Shivaji chowk" every Maharashtra village has)
+  {
+    const x = 122, z = 139;
+    const y = height[col(x, z)];
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) for (let k = 1; k <= 2; k++) set(x + dx, y + k, z + dz, B.COBBLE);
+    for (let dz = -7; dz <= 7; dz++) for (let dx = -7; dx <= 7; dx++) reserved[col(x + dx, z + dz)] = 1; // no tree grows over him
+    structures.push({ kind: "statue", who: "shivaji", x, z, y: y + 1, facing: Math.PI / 2 });
   }
   const landOffice = house(89, 111, 6, 5, B.WHITEWASH, B.ROOF_TILE, "E");
   const bank = house(114, 125, 7, 6, B.BRICK, B.ROOF_TILE, "W");

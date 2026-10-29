@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { mulberry32 } from "../../shared/rng";
 import type { Plot, Structure } from "../../shared/world";
+import { shivajiFigure, swapInScan } from "./statues";
 import { mat, TEX } from "./textures";
 
 /*
@@ -387,26 +388,42 @@ export class Village {
 
   /** A small idol: Sevalal Maharaj in white with a pheta and staff, or Hanuman in sindoor with his gada. */
   private idol(M: Record<string, () => THREE.Material>, x: number, y: number, z: number, who: "sevalal" | "hanuman", faceX = false) {
-    const at = (dx: number, dy: number, dz: number) => new THREE.Matrix4().makeTranslation(x + (faceX ? dz : dx), y + dy, z + (faceX ? dx : dz));
+    // the idol is its own group, so a scanned murti (public/statues/) can take its place
+    const slot = new THREE.Group();
+    slot.position.set(x, y, z);
+    if (faceX) slot.rotation.y = -Math.PI / 2; // facing −x, out of a west door
+    const modelled = new THREE.Group();
+    slot.add(modelled);
+    this.group.add(slot);
+    void swapInScan(who, slot, modelled);
+    const mats = new Map<string, THREE.Material>();
+    const at = (dx: number, dy: number, dz: number) => new THREE.Matrix4().makeTranslation(dx, dy, dz);
+    const put = (key: string, m: () => THREE.Material, g: THREE.BufferGeometry, mx: THREE.Matrix4) => {
+      if (!mats.has(key)) mats.set(key, m());
+      const mesh = new THREE.Mesh(g, mats.get(key)!);
+      mesh.applyMatrix4(mx);
+      mesh.castShadow = true;
+      modelled.add(mesh);
+    };
     if (who === "sevalal") {
-      this.put("marble", M.marble, new THREE.CylinderGeometry(0.22, 0.3, 0.7, 12), at(0, 0.35, 0)); // robe
-      this.put("marble", M.marble, new THREE.CylinderGeometry(0.16, 0.2, 0.35, 12), at(0, 0.85, 0)); // chest
-      this.put("gold", M.gold, new THREE.SphereGeometry(0.13, 12, 10), at(0, 1.13, 0)); // face (gilt, as shrine idols often are)
-      this.put("marble", M.marble, new THREE.TorusGeometry(0.11, 0.06, 6, 12).rotateX(Math.PI / 2), at(0, 1.25, 0)); // white pheta
-      this.put("marble", M.marble, new THREE.SphereGeometry(0.1, 10, 8), at(0, 1.3, 0));
-      this.put("wood", M.wood, new THREE.CylinderGeometry(0.02, 0.02, 1.2, 6), at(0.3, 0.6, 0.05)); // his staff
+      put("marble", M.marble, new THREE.CylinderGeometry(0.22, 0.3, 0.7, 12), at(0, 0.35, 0)); // robe
+      put("marble", M.marble, new THREE.CylinderGeometry(0.16, 0.2, 0.35, 12), at(0, 0.85, 0)); // chest
+      put("gold", M.gold, new THREE.SphereGeometry(0.13, 12, 10), at(0, 1.13, 0)); // face (gilt, as shrine idols often are)
+      put("marble", M.marble, new THREE.TorusGeometry(0.11, 0.06, 6, 12).rotateX(Math.PI / 2), at(0, 1.25, 0)); // white pheta
+      put("marble", M.marble, new THREE.SphereGeometry(0.1, 10, 8), at(0, 1.3, 0));
+      put("wood", M.wood, new THREE.CylinderGeometry(0.02, 0.02, 1.2, 6), at(0.3, 0.6, 0.05)); // his staff
       for (let i = 0; i < 12; i++) {
         const a = (i / 12) * Math.PI * 2;
-        this.put("marigold", M.marigold, new THREE.SphereGeometry(0.04, 6, 5), at(Math.cos(a) * 0.18, 0.95 - Math.abs(Math.sin(a)) * 0.15, Math.sin(a) * 0.1 + 0.12));
+        put("marigold", M.marigold, new THREE.SphereGeometry(0.04, 6, 5), at(Math.cos(a) * 0.18, 0.95 - Math.abs(Math.sin(a)) * 0.15, Math.sin(a) * 0.1 + 0.12));
       }
     } else {
-      this.put("sindoor", M.sindoor, new THREE.CylinderGeometry(0.2, 0.26, 0.6, 12), at(0, 0.3, 0)); // legs
-      this.put("sindoor", M.sindoor, new THREE.SphereGeometry(0.24, 12, 10).scale(1, 1.2, 0.9), at(0, 0.8, 0)); // the broad chest
-      this.put("sindoor", M.sindoor, new THREE.SphereGeometry(0.15, 12, 10), at(0, 1.15, 0.02)); // head
-      this.put("gold", M.gold, new THREE.ConeGeometry(0.1, 0.22, 10), at(0, 1.35, 0)); // mukut
-      this.put("gold", M.gold, new THREE.SphereGeometry(0.13, 10, 8), at(0.33, 1.02, 0.05)); // the gada's head
-      this.put("gold", M.gold, new THREE.CylinderGeometry(0.03, 0.03, 0.6, 6), at(0.33, 0.7, 0.05));
-      this.put("marigold", M.marigold, new THREE.TorusGeometry(0.2, 0.035, 5, 14).rotateX(Math.PI / 2.4), at(0, 0.9, 0.08));
+      put("sindoor", M.sindoor, new THREE.CylinderGeometry(0.2, 0.26, 0.6, 12), at(0, 0.3, 0)); // legs
+      put("sindoor", M.sindoor, new THREE.SphereGeometry(0.24, 12, 10).scale(1, 1.2, 0.9), at(0, 0.8, 0)); // the broad chest
+      put("sindoor", M.sindoor, new THREE.SphereGeometry(0.15, 12, 10), at(0, 1.15, 0.02)); // head
+      put("gold", M.gold, new THREE.ConeGeometry(0.1, 0.22, 10), at(0, 1.35, 0)); // mukut
+      put("gold", M.gold, new THREE.SphereGeometry(0.13, 10, 8), at(0.33, 1.02, 0.05)); // the gada's head
+      put("gold", M.gold, new THREE.CylinderGeometry(0.03, 0.03, 0.6, 6), at(0.33, 0.7, 0.05));
+      put("marigold", M.marigold, new THREE.TorusGeometry(0.2, 0.035, 5, 14).rotateX(Math.PI / 2.4), at(0, 0.9, 0.08));
     }
   }
 
@@ -490,8 +507,69 @@ export class Village {
     this.lamps.push(new THREE.Vector3(cx, y + 2.5, cz));
   }
 
+  /** Chhatrapati Shivaji Maharaj on horseback, in bronze, on a tall plinth with a plaque and a bhagwa flag. */
+  private shivaji(s: Extract<Structure, { kind: "statue" }>, M: Record<string, () => THREE.Material>) {
+    const cx = s.x + 0.5, cz = s.z + 0.5, y = s.y - 1;
+    const stone = () => new THREE.MeshStandardMaterial({ color: "#5c5650", roughness: 0.7 });
+    const pedestal = () => new THREE.MeshStandardMaterial({ color: "#d9d2c2", roughness: 0.6 });
+    this.box("basalt", stone, 4.4, 0.45, 4.4, cx, y + 0.22, cz); // black Deccan basalt steps
+    this.box("basalt", stone, 3.8, 0.3, 3.8, cx, y + 0.6, cz);
+    this.box("ped", pedestal, 3.0, 1.9, 3.0, cx, y + 1.7, cz);
+    this.box("ped", pedestal, 3.3, 0.18, 3.3, cx, y + 2.74, cz);
+    const slot = new THREE.Group();
+    slot.position.set(cx, y + 2.83, cz);
+    slot.rotation.y = s.facing;
+    const modelled = shivajiFigure();
+    slot.add(modelled);
+    this.group.add(slot);
+    void swapInScan("shivaji", slot, modelled);
+    // the plaque, facing the chowk
+    const c = document.createElement("canvas");
+    c.width = 512;
+    c.height = 320;
+    const g = c.getContext("2d")!;
+    g.fillStyle = "#2c2418";
+    g.fillRect(0, 0, 512, 320);
+    g.strokeStyle = "#c9a040";
+    g.lineWidth = 8;
+    g.strokeRect(10, 10, 492, 300);
+    g.textAlign = "center";
+    g.fillStyle = "#e8c874";
+    g.font = "800 44px 'Noto Sans Devanagari', 'Kohinoor Devanagari', system-ui";
+    g.fillText("छत्रपती शिवाजी महाराज", 256, 86);
+    g.font = "600 30px 'Noto Sans Devanagari', system-ui";
+    g.fillText("जय भवानी, जय शिवाजी", 256, 140);
+    g.font = "700 30px system-ui";
+    g.fillText("Chhatrapati Shivaji Maharaj", 256, 204);
+    g.font = "500 22px system-ui";
+    g.fillText("1630 – 1680 · Founder of the Maratha Swarajya", 256, 252);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    const plaque = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.0), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5, metalness: 0.2 }));
+    const f = s.facing;
+    plaque.position.set(cx + Math.sin(f) * 1.51, y + 1.7, cz + Math.cos(f) * 1.51);
+    plaque.rotation.y = f;
+    this.group.add(plaque);
+    // a fresh marigold garland draped on the plinth's edge
+    for (let i = 0; i < 26; i++) {
+      const t = i / 25;
+      const along = -1.4 + t * 2.8;
+      const px = cx + Math.sin(f) * 1.66 + Math.cos(f) * along, pz = cz + Math.cos(f) * 1.66 - Math.sin(f) * along;
+      this.put("marigold", M.marigold, new THREE.SphereGeometry(0.06, 6, 5), new THREE.Matrix4().makeTranslation(px, y + 2.62 - Math.sin(t * Math.PI) * 0.35, pz));
+    }
+    // the bhagwa jhenda on a tall pole behind
+    this.box("wood", M.wood, 0.06, 5, 0.06, cx - Math.sin(f) * 1.3, y + 5.3, cz - Math.cos(f) * 1.3);
+    const fl = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.7, 6, 2), M.saffron());
+    fl.geometry.translate(0.55, 0, 0);
+    fl.position.set(cx - Math.sin(f) * 1.3 + 0.03, y + 7.4, cz - Math.cos(f) * 1.3);
+    this.group.add(fl);
+    this.flagCloth.push(fl);
+  }
+
   /** Vasantrao Naik in bronze on a stone pedestal, with his name plaque and a marigold garland. */
   private statue(s: Extract<Structure, { kind: "statue" }>, M: Record<string, () => THREE.Material>) {
+    if (s.who === "shivaji") return this.shivaji(s, M);
     const cx = s.x + 0.5, cz = s.z + 0.5, y = s.y - 1;
     const bronze = () => new THREE.MeshStandardMaterial({ color: "#7a5a32", metalness: 0.75, roughness: 0.38 });
     const pedestal = () => new THREE.MeshStandardMaterial({ color: "#d9d2c2", roughness: 0.6 });
@@ -499,8 +577,22 @@ export class Village {
     this.box("ped", pedestal, 1.6, 1.4, 1.6, cx, y + 1.1, cz);
     this.box("ped", pedestal, 1.8, 0.14, 1.8, cx, y + 1.86, cz);
     // the figure: a man in dhoti, kurta and a sleeveless jacket, spectacles, one hand raised in greeting
-    const at = (x: number, yy: number, z: number) => new THREE.Matrix4().makeTranslation(cx + x, y + 1.93 + yy, cz + z);
-    const B = (g: THREE.BufferGeometry, x: number, yy: number, z: number) => this.put("bronze", bronze, g, at(x, yy, z));
+    // the figure is its own group, so a scan (public/statues/) can take its place
+    const slot = new THREE.Group();
+    slot.position.set(cx, y + 1.93, cz);
+    slot.rotation.y = s.facing;
+    const modelled = new THREE.Group();
+    slot.add(modelled);
+    this.group.add(slot);
+    void swapInScan("naik", slot, modelled);
+    const at = (x: number, yy: number, z: number) => new THREE.Matrix4().makeTranslation(x, yy, z);
+    const bronzeMat = bronze();
+    const B = (g: THREE.BufferGeometry, x: number, yy: number, z: number) => {
+      const m = new THREE.Mesh(g, bronzeMat);
+      m.applyMatrix4(at(x, yy, z));
+      m.castShadow = true;
+      modelled.add(m);
+    };
     B(new THREE.CylinderGeometry(0.19, 0.25, 0.85, 18), 0, 0.43, 0); // dhoti
     B(new THREE.CylinderGeometry(0.19, 0.2, 0.62, 18), 0, 1.1, 0); // kurta
     // the sleeveless jacket: a thin shell over the chest, open at the front
@@ -521,9 +613,12 @@ export class Village {
     B(new THREE.CapsuleGeometry(0.05, 0.24, 4, 8).rotateZ(0.15), 0.41, 1.52, 0.06);
     B(new THREE.SphereGeometry(0.055, 8, 6).scale(0.7, 1.2, 0.5), 0.43, 1.7, 0.07); // the open palm
     // a fresh marigold garland round his neck (people garland him on Krushi Din, 1 July)
+    const marigoldMat = M.marigold();
     for (let i = 0; i < 22; i++) {
       const t = i / 21, a = Math.PI * (1.05 + t * 0.9);
-      this.put("marigold", M.marigold, new THREE.SphereGeometry(0.036, 6, 5), at(Math.cos(a) * -0.19, 1.42 - Math.sin(t * Math.PI) * 0.26, -Math.sin(a) * 0.14 + 0.06));
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.036, 6, 5), marigoldMat);
+      m.applyMatrix4(at(Math.cos(a) * -0.19, 1.42 - Math.sin(t * Math.PI) * 0.26, -Math.sin(a) * 0.14 + 0.06));
+      modelled.add(m);
     }
     // the plaque on the pedestal, facing the chowk
     const c = document.createElement("canvas");

@@ -48,6 +48,7 @@ export class TitleScreen {
   onPlay: () => void = () => {};
   onSettings: () => void = () => {};
   onBoard: () => void = () => {};
+  onStory: () => void = () => {};
 
   constructor(parent: HTMLElement) {
     this.el = el("div", "title-screen", parent, `
@@ -60,6 +61,7 @@ export class TitleScreen {
           <button class="primary" data-t="play">${t("Start farming")}</button>
           <div class="title-row">
             <button data-t="board">${t("Leaderboard")}</button>
+            <button data-t="story">${t("The story")}</button>
             <button data-t="about">${t("The village")}</button>
             <button data-t="settings">${t("Settings")}</button>
           </div>
@@ -95,6 +97,7 @@ export class TitleScreen {
       if (t.dataset.t === "play") this.onPlay();
       if (t.dataset.t === "settings") this.onSettings();
       if (t.dataset.t === "board") this.onBoard();
+      if (t.dataset.t === "story") this.onStory();
       if (t.dataset.t === "about") {
         const c = this.el.querySelector(".about-card") as HTMLElement;
         c.hidden = !c.hidden;

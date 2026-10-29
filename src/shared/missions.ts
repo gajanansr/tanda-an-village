@@ -56,7 +56,7 @@ export const BANDH_PLOT = 8; // the field by the vihir
 export const MISSIONS: Mission[] = [
   {
     id: "homecoming", title: "Ghar Wapsi", local: "घर वापसी · Homecoming", who: "Naik Dhavlu",
-    story: "Ram Ram, beta! After all these years in the city, you're back. Your Dada's field, Aamrai, has been lying fallow. Come, see me at the kacheri by the chowk, then go and wake that black soil up.",
+    story: "Ram Ram, beta! Off the Lal Pari with a box under your arm — so the city company let you go? Their loss is the tanda's gain. Your Dada's field, Aamrai, has been lying fallow. Come, see me at the kacheri by the chowk, then go and wake that black soil up.",
     done: "The whole tanda saw you ploughing today. Dada would be proud.",
     objectives: [
       { id: "talk", text: "Talk to Naik Dhavlu at his kacheri (press E near him)", need: 1, have: (s) => since(s, "talk:naik"), how: "Follow the golden marker to his door on the chowk, then press E." },

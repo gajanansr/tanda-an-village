@@ -149,6 +149,8 @@ export function generateWorld(seed = WORLD_SEED): World {
   };
   for (let z = 70; z <= 152; z++) for (let x = 74; x <= 132; x++) if (inVillage(x, z)) height[col(x, z)] = 15;
   const SQUARE = { x0: 97, z0: 108, x1: 113, z1: 122, y: 15 };
+  /** The smarak beside the chowk, where the statues stand (east, between the houses and the bank). */
+  const SMARAK = { x0: 113, z0: 112, x1: 119, z1: 122 };
   flatten(SQUARE.x0, SQUARE.z0, SQUARE.x1, SQUARE.z1, SQUARE.y, B.DIRT);
   for (let z = SQUARE.z0; z <= SQUARE.z1; z++) for (let x = SQUARE.x0; x <= SQUARE.x1; x++) if (hash2(x, z, seed + 3) < 0.4) top[col(x, z)] = B.GRASS;
   // roads: stamp each polyline with its width; main roads are wider, field tracks narrower
@@ -432,24 +434,9 @@ export function generateWorld(seed = WORLD_SEED): World {
   // the chowk: Ganpat's and Sitabai's stalls on its north side, the Naik's kacheri to the west
   const trader = stall(98, 109, 5, 4, B.SAFFRON);
   const seedShop = stall(106, 109, 5, 4, B.BLUE_WOOD);
-  // in front of Sitabai's, a small statue of Vasantrao Naik — the Banjara farmer's son who became
-  // Maharashtra's longest-serving Chief Minister and the father of its Green Revolution
-  {
-    const x = seedShop.x + 2, z = seedShop.z + 2;
-    const y = height[col(x, z)];
-    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) set(x + dx, y + 1, z + dz, B.COBBLE); // the pedestal, solid
-    set(x, y + 2, z, B.COBBLE);
-    structures.push({ kind: "statue", who: "naik", x, z, y: y + 1, facing: 0 }); // facing the chowk
-  }
-  // at the village gate, where the lanes leave the Jalna road, Chhatrapati Shivaji Maharaj on horseback
-  // on a tall stone plinth, facing the road in (the "Shivaji chowk" every Maharashtra village has)
-  {
-    const x = 122, z = 139;
-    const y = height[col(x, z)];
-    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) for (let k = 1; k <= 2; k++) set(x + dx, y + k, z + dz, B.COBBLE);
-    for (let dz = -7; dz <= 7; dz++) for (let dx = -7; dx <= 7; dx++) reserved[col(x + dx, z + dz)] = 1; // no tree grows over him
-    structures.push({ kind: "statue", who: "shivaji", x, z, y: y + 1, facing: Math.PI / 2 });
-  }
+  // the Shivaji chowk at the village gate used to stand here; the statues are now on the smarak
+  // beside the chowk (below). The ground stays clear of trees, so the rest of the village is unchanged.
+  for (let dz = -7; dz <= 7; dz++) for (let dx = -7; dx <= 7; dx++) reserved[col(122 + dx, 139 + dz)] = 1;
   const landOffice = house(89, 111, 6, 5, B.WHITEWASH, B.ROOF_TILE, "E");
   const bank = house(114, 125, 7, 6, B.BRICK, B.ROOF_TILE, "W");
   // each board carries its opening hours
@@ -533,7 +520,7 @@ export function generateWorld(seed = WORLD_SEED): World {
         }
       const roofs = houseRng() < 0.3 ? B.THATCH : B.ROOF_TILE;
       const walls = houseRng() < 0.25 ? B.BRICK : B.WHITEWASH;
-      if (inWadaZone(x, z, w, d)) {
+      if (inWadaZone(x, z, w, d) || (x <= SMARAK.x1 && x + w - 1 >= SMARAK.x0 && z <= SMARAK.z1 && z + d - 1 >= SMARAK.z0)) {
         for (let xx = x - 1; xx <= x + w; xx++) for (let zz = z - 1; zz <= z + d; zz++) reserved[col(xx, zz)] = 1;
         continue;
       }
@@ -544,6 +531,21 @@ export function generateWorld(seed = WORLD_SEED): World {
       house(blocksWada ? x + 5 : x, z, w, d, walls, roofs, bestSide);
       houses++;
     }
+
+  // the smarak, on the chowk's east side: Vasantrao Naik — the Banjara farmer's son who became
+  // Maharashtra's longest-serving Chief Minister and the father of its Green Revolution — and
+  // Chhatrapati Shivaji Maharaj on horseback, on a tall stone plinth, both facing the chowk
+  {
+    pad(SMARAK.x0, SMARAK.z0, SMARAK.x1, SMARAK.z1, SQUARE.y);
+    for (let z = SMARAK.z0; z <= SMARAK.z1; z++) for (let x = SMARAK.x0; x <= SMARAK.x1; x++) if (hash2(x, z, seed + 3) < 0.4) top[col(x, z)] = B.GRASS;
+    const y = SQUARE.y;
+    const naik = { x: 114, z: 113 }, shivaji = { x: 116, z: 119 };
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) set(naik.x + dx, y + 1, naik.z + dz, B.COBBLE); // the pedestal, solid
+    set(naik.x, y + 2, naik.z, B.COBBLE);
+    structures.push({ kind: "statue", who: "naik", x: naik.x, z: naik.z, y: y + 1, facing: -Math.PI / 2 });
+    for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) for (let k = 1; k <= 2; k++) set(shivaji.x + dx, y + k, shivaji.z + dz, B.COBBLE);
+    structures.push({ kind: "statue", who: "shivaji", x: shivaji.x, z: shivaji.z, y: y + 1, facing: -Math.PI / 2 });
+  }
 
   // Rathod Bhuvan: solid ground-floor walls (back, ends, and the inner front wall with a door for each
   // of the three homes) and verandah posts, so you can walk the verandah and in at your own door

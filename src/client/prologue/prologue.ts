@@ -218,7 +218,7 @@ export class Prologue {
       <h2>Ram Ram! Welcome home to Ukhali Tanda</h2>
       <p>Two kilometres of black soil, the smoke of the chulhas, and the whole tanda already knows you've come home.</p>
       <p>Dada's field, <b>Aamrai</b>, has lain fallow since he passed. Naik Dhavlu is waiting at his kacheri on the chowk. The card at the top left and the golden marker will show you each step.</p>
-      <p class="pl-tip">${this.touch ? "Your radio is in your bag: ☰ menu → Radio." : "Your radio is in your bag: <kbd>B</kbd> for the station and every song, <kbd>N</kbd> for the next one."}</p>
+      <p class="pl-tip">${this.touch ? "Your radio is in your bag: ☰ menu → Radio." : "Your radio is in your bag: <kbd>B</kbd> to play or pause, <kbd>N</kbd> for the next song."}</p>
       <div class="big-acts"><button data-go>Let's farm</button></div></div>`;
     end.querySelector("[data-go]")!.addEventListener("click", () => {
       end.hidden = true;
@@ -337,6 +337,8 @@ export class Prologue {
       const want = Math.atan2(1.1, 1.65 - 0.82);
       o.hero.root.rotation.y = THREE.MathUtils.lerp(Math.PI, want, ease((t - 18.5) / 1.4));
     }
+    // his chair swivels with him (its back is behind him, so it turns half a turn less than he faces)
+    o.heroChair.rotation.y = o.hero.action === "sit" || o.hero.action === "type" ? o.hero.root.rotation.y - Math.PI : 0;
     // the ringing phone
     const ph = o.phone.material as THREE.MeshStandardMaterial;
     ph.emissive.set("#7fb7ff");
@@ -556,7 +558,7 @@ export class Prologue {
     const r = this.ride!, t = this.t;
     // night until 20 s, then dawn breaks over the black soil by 30 s
     const night = 1 - ease((t - 20) / 10);
-    this.dome.set(new THREE.Color("#4f74b0").lerp(new THREE.Color("#04060f"), night), new THREE.Color("#f2a46a").lerp(new THREE.Color("#141a30"), night), night);
+    this.dome.set(new THREE.Color("#4f74b0").lerp(new THREE.Color("#04060f"), night), new THREE.Color("#f2a46a").lerp(new THREE.Color("#141a30"), night), night ** 3); // the stars go out well before the dark does
     (this.scene.fog as THREE.Fog).color.set(new THREE.Color("#d9a07a").lerp(new THREE.Color("#0b0e1c"), night));
     r.hemi.intensity = 0.7 + (1 - night) * 1.3;
     r.moon.intensity = night * 0.7;

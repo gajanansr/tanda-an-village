@@ -135,6 +135,7 @@ export class Nights {
       f.root.position.set(fx + Math.cos(a) * 1.3, fy, fz + Math.sin(a) * 1.3);
       f.root.rotation.y = Math.atan2(fx - f.root.position.x, fz - f.root.position.z);
       f.action = "sit";
+      f.stool = true;
       this.group.add(f.root);
       this.friends.push(f);
     });

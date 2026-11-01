@@ -371,7 +371,7 @@ const showBoard = () => {
   releaseMouse();
 };
 titleScreen.onBoard = showBoard;
-// Tanda FM: the station window (B), with every song, and the now-playing pill
+// Tanda FM: B plays or pauses, N skips; the station window (Shift+B, or click the radio button) has every song
 const radioPanel = new RadioPanel(uiRoot, radio);
 radio.onChange = () => radioPanel.render();
 const showRadio = () => {
@@ -443,6 +443,33 @@ function closeWindows() {
 function windowOpen() {
   return !!ploughJob || WINDOWS().some((w) => w.open()) || guide.dialogueOpen || !!document.querySelector(".welcome, .fs-gate:not([hidden])");
 }
+/*
+ * Every window works from the keyboard as well as the mouse: the arrow keys move between its buttons,
+ * Enter or Space presses the one that's lit, and Esc closes it (even with a button in it focused,
+ * which would otherwise keep the keys to itself). The radio and the map have arrow keys of their own.
+ */
+window.addEventListener("keydown", (e) => {
+  if (guide.dialogueOpen || prologue.active || !WINDOWS().some((w) => w.open())) return;
+  if ((e.target as HTMLElement).closest?.("input, textarea, select")) return;
+  if (e.code === "Escape") {
+    e.preventDefault();
+    closeWindows();
+    return resumePlay();
+  }
+  if (!/^Arrow(Up|Down|Left|Right)$/.test(e.code) || radioPanel.open || map.open) return;
+  const cards = [...document.querySelectorAll<HTMLElement>("#ui .panel:not([hidden]) .panel-card")].filter((c) => c.offsetParent);
+  const card = cards.at(-1);
+  if (!card) return;
+  const items = [...card.querySelectorAll<HTMLElement>("button:not([disabled]), summary, a[href]")].filter((b) => b.offsetParent && !b.classList.contains("x"));
+  if (!items.length) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const at = items.indexOf(document.activeElement as HTMLElement);
+  const step = e.code === "ArrowDown" || e.code === "ArrowRight" ? 1 : -1;
+  const next = items[at < 0 ? (step > 0 ? 0 : items.length - 1) : (at + step + items.length) % items.length];
+  next.focus();
+  next.scrollIntoView({ block: "nearest" });
+}, true);
 phoneMenu.onPick = (what) => (what === "log" ? showLogWindow() : what === "account" ? showAccount() : what === "map" ? showMap() : what === "board" ? showBoard() : what === "help" ? controls.onHelp() : what === "view" ? controls.onView() : what === "torch" ? controls.onTorch() : what === "radio" ? showRadio() : settingsPanel.show());
 phoneMenu.onClose = () => resumePlay();
 // tapping the dark area round a window closes it (not story cards: those need their buttons)
@@ -495,6 +522,11 @@ if (touch) {
     controls.onSelect(i);
   });
 }
+// clicking a hotbar slot picks it too (while paused: with the mouse locked, keys 1–6 and the wheel do)
+uiRoot.addEventListener("click", (e) => {
+  const slot = (e.target as HTMLElement).closest(".hotbar .slot");
+  if (slot) controls.onSelect([...slot.parentElement!.children].indexOf(slot));
+});
 let target: Hit | null = null;
 
 const outline = new THREE.LineSegments(
@@ -923,10 +955,25 @@ function daySounds() {
   }
   ripeHeard = ripe;
 }
+/**
+ * The cart and the bulls: what's on offer where you stand. E does it (the old keys R, G, P and F still
+ * work too), so one key is enough for whatever the prompt shows.
+ */
+function farmChore(): { text: string; run: () => void } | null {
+  if (game.save.bulls && !game.save.bulls.tied && nearYard()) return { text: tr(game.save.inv.gotha ? "Tie Sarja & Raja in their gotha" : "Tie Sarja & Raja at the khunta"), run: tieToggle };
+  if (game.save.bulls?.tied && nearYard()) return { text: tr("Untie Sarja & Raja"), run: tieToggle };
+  if (game.save.bulls && game.save.inv.plough && game.save.plots.includes(world.plotMap[Math.floor(body.pos.x) + W * Math.floor(body.pos.z)])) return { text: tr("Let Sarja & Raja plough this field"), run: startFieldPlough };
+  if (nearBulls() && game.save.inv.gerua && current(game.save)?.id === "pola" && !game.save.missions.flags.decorated) return { text: tr("Paint Sarja & Raja's horns with gerua"), run: feedBulls };
+  if (nearBulls()) return { text: tr("Feed Sarja & Raja ({n} kadba)", { n: game.save.inv.fodder ?? 0 }), run: feedBulls };
+  return null;
+}
+/** Would E do something else here first (sleep, a seat, the fire, the tanki, the school, a pastime)? */
+const eTaken = () => (isNight(nowHour()) && nearHome()) || !!seat || polaHere() || (Nights.evening(nowHour()) && nearFire()) || nearLadder() || schoolHere() || !!pastimeHint() || !!nearStall();
 function cartHint(): string {
   if (nearCart()) {
-    if (game.save.trip) return `<kbd>R</kbd> ${tr(cartInTown() ? "Sell the load at the mandi" : "Continue to the town mandi")}`;
-    return `<kbd>R</kbd> ${tr(cartInTown() ? "Ride home" : "Load the cart for the town mandi")}`;
+    const k = eTaken() ? "R" : "E";
+    if (game.save.trip) return `<kbd>${k}</kbd> ${tr(cartInTown() ? "Sell the load at the mandi" : "Continue to the town mandi")}`;
+    return `<kbd>${k}</kbd> ${tr(cartInTown() ? "Ride home" : "Load the cart for the town mandi")}`;
   }
   if (polaHere()) return `<kbd>E</kbd> ${tr("Lead Sarja & Raja in the Pola procession")}`;
   if (isNight(nowHour()) && nearHome()) return `<kbd>E</kbd> ${tr("Go home and sleep till morning")}`;
@@ -941,12 +988,8 @@ function cartHint(): string {
   }
   const pastime = pastimeHint();
   if (pastime) return pastime;
-  if (game.save.bulls && !game.save.bulls.tied && nearYard()) return `<kbd>G</kbd> ${tr(game.save.inv.gotha ? "Tie Sarja & Raja in their gotha" : "Tie Sarja & Raja at the khunta")}`;
-  if (game.save.bulls?.tied && nearYard()) return `<kbd>G</kbd> ${tr("Untie Sarja & Raja")}`;
-  if (game.save.bulls && game.save.inv.plough && game.save.plots.includes(world.plotMap[Math.floor(body.pos.x) + W * Math.floor(body.pos.z)])) return `<kbd>P</kbd> ${tr("Let Sarja & Raja plough this field")}`;
-  if (nearBulls() && game.save.inv.gerua && current(game.save)?.id === "pola" && !game.save.missions.flags.decorated) return `<kbd>F</kbd> ${tr("Paint Sarja & Raja's horns with gerua")}`;
-  if (nearBulls()) return `<kbd>F</kbd> ${tr("Feed Sarja & Raja ({n} kadba)", { n: game.save.inv.fodder ?? 0 })}`;
-  return "";
+  const chore = farmChore();
+  return chore ? `<kbd>E</kbd> ${chore.text}` : "";
 }
 function bullsChip(): string {
   if (!game.save.bulls) return "";
@@ -1003,7 +1046,8 @@ function climbTank() {
   const ground = hf.at(TANK.foot.x, TANK.foot.z);
   const from = new THREE.Vector3(TANK.rung, Math.max(body.pos.y, ground), TANK.foot.z);
   const up = new THREE.Vector3(TANK.rung, TANK.roof, TANK.foot.z);
-  seat = { kind: "tank", at: { x: TANK.cx - 2.9, y: TANK.roof, z: TANK.cz }, face: -Math.PI / 2, climb: { from, to: up, t: 0, dur: (TANK.roof - from.y) / 2.4, then: "sit" } };
+  // on the rim (the drum is 3.4 m round), legs over the edge: the sit pose puts the hips a knee's height above the feet
+  seat = { kind: "tank", at: { x: TANK.cx - 3.2, y: TANK.roof - 0.47, z: TANK.cz }, face: -Math.PI / 2, climb: { from, to: up, t: 0, dur: (TANK.roof - from.y) / 2.4, then: "sit" } };
   hud.toast(tr("Up the tanki ladder… hold on tight!"));
 }
 function sitByFire() {
@@ -1046,6 +1090,7 @@ function updateSeat(dt: number, wants: { forward: number; right: number; jump: b
     Object.assign(body.pos, seat.at);
     body.heading = seat.face;
     farmer.action = "sit";
+    farmer.stool = seat.kind === "fire"; // the desk has its chair and the tanki its roof
     if ((wants.forward || wants.right || wants.jump) && !windowOpen()) standUp();
   }
   Object.assign(body.vel, { x: 0, y: 0, z: 0 });
@@ -1556,12 +1601,16 @@ controls.onInteract = () => {
   if (panels.open) return panels.close();
   const s = nearStall();
   if (s && !isOpen(s.kind, nowHour())) return hud.toast(closedText(s.kind), "bad");
-  if (s) openStall(s.kind);
+  if (s) return openStall(s.kind);
+  // nothing else here: the cart, then the bulls
+  if (nearCart()) return void cartAction();
+  farmChore()?.run();
 };
 controls.onEscape = () => closeWindows();
 controls.onMap = () => (map.open ? map.close() : showMap());
 controls.onBoard = () => (board.open ? board.close() : showBoard());
 controls.onKaam = () => jobs.toggle();
+controls.onGoal = () => guide.toggleCard();
 controls.onHelp = () => {
   if (!guide.helpOpen) closeWindows();
   guide.toggleHelp();
@@ -1575,7 +1624,8 @@ controls.onTorch = () => {
   audio.play("buy");
 };
 radio.onNotice = (m) => hud.toast(m);
-controls.onRadio = () => (radioPanel.open ? radioPanel.close() : showRadio());
+controls.onRadio = () => radio.playPause(); // B: music on or off, straight away
+controls.onRadioStation = () => (radioPanel.open ? radioPanel.close() : showRadio()); // Shift+B: every song
 controls.onRadioNext = () => void radio.next();
 controls.onView = () => {
   rig.view = rig.view === "third" ? "first" : "third";
@@ -1588,7 +1638,7 @@ document.querySelector(".play-prompt")!.addEventListener("click", (e) => {
   if (!(e.target as HTMLElement).closest(".account")) canvas.requestPointerLock?.();
 });
 // while the story plays, keys and buttons belong to it: only talking and the radio do anything
-for (const k of ["onDig", "onPlace", "onSelect", "onScroll", "onMap", "onBoard", "onKaam", "onHelp", "onPloughField", "onTie", "onSleep", "onTorch", "onView", "onRide", "onFeed", "onInteract", "onRadio", "onRadioNext", "onEscape"] as const) {
+for (const k of ["onDig", "onPlace", "onSelect", "onScroll", "onMap", "onBoard", "onKaam", "onHelp", "onPloughField", "onTie", "onSleep", "onTorch", "onView", "onRide", "onFeed", "onInteract", "onRadio", "onRadioNext", "onRadioStation", "onEscape", "onGoal"] as const) {
   const f = controls[k] as (...a: unknown[]) => void;
   (controls as unknown as Record<string, (...a: unknown[]) => void>)[k] = (...a) => (prologue.active ? prologue.key(k) : f(...a));
 }
@@ -1736,7 +1786,7 @@ renderer.setAnimationLoop(() => {
       fishing.update(dt, controls.held.has("Space"), !windowOpen() && (wants.forward !== 0 || wants.right !== 0), nowHour(), body.pos);
       body.heading = fishing.heading;
     }
-    rig.update(dt, body.pos, controls.yaw, controls.pitch, undefined, body.vel, walker.floorAt(body.pos.x, body.pos.z, body.pos.y));
+    rig.update(dt, body.pos, controls.yaw, controls.pitch, undefined, body.vel, seat ? body.pos.y : walker.floorAt(body.pos.x, body.pos.z, body.pos.y)); // seated, your legs may hang over an edge: the camera goes by you, not the ground below
     // aim along the crosshair; you can only reach what's near your farmer
     const ray = rig.ray();
     const cur = hotbar.current;

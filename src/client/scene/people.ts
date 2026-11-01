@@ -197,8 +197,8 @@ export class Person {
     for (const s of ["L", "R"]) {
       turn(bone(`${s}_Thigh`), -Math.PI / 2 + 0.08);
       turn(bone(`${s}_Calf`), Math.PI / 2 - 0.05);
-      turn(bone(`${s}_UpperArm`), typing ? -0.95 : -0.35);
-      turn(bone(`${s}_Forearm`), typing ? -0.75 : -0.95);
+      turn(bone(`${s}_UpperArm`), typing ? -0.95 : -0.5);
+      turn(bone(`${s}_Forearm`), typing ? -0.75 : -0.4); // resting on the thighs
     }
     if (typing) turn(bone("Head"), 0.18); // eyes on the screen
     // lower the body: the thighs are now level at hip height, so the feet hang a shin's length below it

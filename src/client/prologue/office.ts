@@ -86,11 +86,14 @@ function desk(g: THREE.Group, x: number, z: number, screen?: THREE.Texture) {
   s.position.set(x, 1.12, z - 0.215);
   g.add(s);
   box(g, 0.45, 0.02, 0.15, x, 0.775, z + 0.05, "#2b2d33"); // keyboard
-  // the chair
-  box(g, 0.5, 0.08, 0.5, x, 0.44, z + 0.78, "#26282e");
-  box(g, 0.5, 0.6, 0.06, x, 0.52, z + 1.05, "#26282e");
-  cyl(g, 0.03, 0.44, x, 0, z + 0.78, "#55585e");
-  return s;
+  // the chair: a swivel chair, pivoting where its sitter sits, so it turns with them
+  const chair = new THREE.Group();
+  chair.position.set(x, 0, z + 0.82);
+  box(chair, 0.5, 0.08, 0.5, 0, 0.44, -0.04, "#26282e");
+  box(chair, 0.5, 0.6, 0.06, 0, 0.52, 0.23, "#26282e");
+  cyl(chair, 0.03, 0.44, 0, 0, -0.04, "#55585e");
+  g.add(chair);
+  return { screen: s, chair };
 }
 
 export function buildOffice() {
@@ -117,13 +120,11 @@ export function buildOffice() {
   g.add(leaves);
   box(g, 3, 0.95, 0.7, 10.5, 0, 8.9, "#b3a58c");
 
-  let heroScreen: THREE.Mesh | null = null;
-  const seats: { x: number; z: number }[] = [];
+  let heroScreen: THREE.Mesh | null = null, heroChair: THREE.Group | null = null;
   for (const z of [-5, 0, 5])
     for (const x of [-9, -6, -3, 0, 3, 6, 9]) {
-      const s = desk(g, x, z, x === 0 && z === 0 ? codeScreen() : undefined);
-      if (x === 0 && z === 0) heroScreen = s;
-      else seats.push({ x, z });
+      const d = desk(g, x, z, x === 0 && z === 0 ? codeScreen() : undefined);
+      if (x === 0 && z === 0) [heroScreen, heroChair] = [d.screen, d.chair];
     }
   // things on the hero's desk: a mug, a framed photo of Aai and Dada, a little plant
   cyl(g, 0.045, 0.1, 0.55, 0.745, 0.1, "#c0392b");
@@ -171,6 +172,6 @@ export function buildOffice() {
   const shadow = blob(0.9);
   hr.root.add(shadow);
 
-  return { group: g, hero, hr, colleagues, carton, phone, heroScreen: heroScreen! };
+  return { group: g, hero, hr, colleagues, carton, phone, heroScreen: heroScreen!, heroChair: heroChair! };
 }
 export type Office = ReturnType<typeof buildOffice>;

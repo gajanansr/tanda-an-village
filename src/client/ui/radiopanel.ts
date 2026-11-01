@@ -3,7 +3,9 @@ import type { Radio } from "../radio";
 /*
  * Tanda FM: the radio's window (B) — every song on the station, the one playing marked, and
  * play/pause, previous and next. Inside it Space plays or pauses, ←/→ change the song and 1–9 pick
- * one. While a song plays, a small pill in the corner shows its name; click it to open the window.
+ * one. A small button in the corner is always there: off the air it says Tanda FM and B starts the
+ * music; while a song plays it shows the song's name, with B to pause and N for the next one. Click it
+ * (or Shift+B) for the whole station.
  */
 export class RadioPanel {
   private el: HTMLElement;
@@ -39,9 +41,10 @@ export class RadioPanel {
     }, true);
     this.pill = document.createElement("button");
     this.pill.className = "radio-pill";
-    this.pill.hidden = true;
-    this.pill.addEventListener("click", () => (this.open ? this.close() : this.onOpenRequest()));
+    // off the air, a click starts the music (a click lets the browser play it); on the air, it opens the station
+    this.pill.addEventListener("click", () => (this.open ? this.close() : this.radio.on ? this.onOpenRequest() : this.radio.playPause()));
     parent.appendChild(this.pill);
+    this.render();
   }
 
   /** Opening goes through the game, so other windows close and the mouse is let go. */
@@ -64,9 +67,13 @@ export class RadioPanel {
   render() {
     const r = this.radio, songs = r.all, cur = r.current;
     const now = songs[cur];
-    this.pill.hidden = !r.on || !now;
-    if (now) this.pill.innerHTML = `<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span class="t">${esc(now.title)}</span>`;
-    this.pill.title = "Tanda FM — click for the station (B)";
+    const playing = r.on && !!now;
+    this.pill.classList.toggle("off", !playing);
+    this.pill.innerHTML = playing
+      ? `<span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span class="t">${esc(now.title)}</span><span class="keys"><kbd class="pill-k">B</kbd> pause <kbd class="pill-k">N</kbd> next</span>`
+      : `<span class="dial" aria-hidden="true">📻</span><span class="t">Tanda FM</span><span class="keys"><kbd class="pill-k">B</kbd> play</span>`;
+    this.pill.title = playing ? "Tanda FM · B pause · N next song · click (or Shift+B) for every song" : "Tanda FM · B or click to play music · Shift+B for every song";
+    this.pill.setAttribute("aria-label", playing ? `Tanda FM, playing ${now.title}. Open the station` : "Play Tanda FM");
     if (!this.open) return;
     this.el.innerHTML = `<div class="panel-card">
       <button class="x" data-close aria-label="Close">✕</button>

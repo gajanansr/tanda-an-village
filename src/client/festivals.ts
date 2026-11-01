@@ -161,6 +161,8 @@ export class Festivals {
   private pandalLight = new THREE.PointLight("#ffd28a", 0, 12, 1.6);
   readonly naikAt: P;
   readonly shivajiAt: P;
+  /** Which way each statue looks: its front is (sin f, cos f). */
+  private facing = { naik: 0, shivaji: 0 };
   readonly pandalAt: P;
   private flames: THREE.Mesh[] = [];
   private fireLight = new THREE.PointLight("#ff8a3a", 0, 14, 1.6);
@@ -175,7 +177,8 @@ export class Festivals {
     this.homeAt = { x: L.home.x + 4.5, z: L.home.z - 4 };
     this.templeAt = { x: L.temple.x, z: L.temple.z };
     const statueAt = (who: "naik" | "shivaji") => {
-      const s = d.world.structures.find((s) => s.kind === "statue" && s.who === who) as { x: number; z: number } | undefined;
+      const s = d.world.structures.find((s) => s.kind === "statue" && s.who === who) as { x: number; z: number; facing: number } | undefined;
+      this.facing[who] = s?.facing ?? 0;
       return s ? { x: s.x + 0.5, z: s.z + 0.5 } : { x: ch.x0 + 3, z: ch.z1 - 4 };
     };
     this.naikAt = statueAt("naik");
@@ -245,26 +248,36 @@ export class Festivals {
     }
     const banner = (lines: [string, string], bg: string, fg: string) => {
       const c = document.createElement("canvas");
-      c.width = 512;
-      c.height = 128;
+      c.width = 1024;
+      c.height = 256;
       const g = c.getContext("2d")!;
       g.fillStyle = bg;
-      g.fillRect(0, 0, 512, 128);
+      g.fillRect(0, 0, 1024, 256);
       g.fillStyle = fg;
       g.textAlign = "center";
-      g.font = "800 50px 'Noto Sans Devanagari', system-ui";
-      g.fillText(lines[0], 256, 60);
-      g.font = "600 26px system-ui";
-      g.fillText(lines[1], 256, 104);
+      // each line shrinks until it fits the cloth, with a margin either side
+      const fit = (text: string, weight: number, size: number, family: string, y: number) => {
+        do g.font = `${weight} ${size--}px ${family}`;
+        while (g.measureText(text).width > 940 && size > 12);
+        g.fillText(text, 512, y);
+      };
+      fit(lines[0], 800, 96, "'Noto Sans Devanagari', 'Kohinoor Devanagari', system-ui", 124);
+      fit(lines[1], 600, 52, "system-ui", 208);
       const t = new THREE.CanvasTexture(c);
       t.colorSpace = THREE.SRGBColorSpace;
       return new THREE.Mesh(new THREE.PlaneGeometry(3.2, 0.8), new THREE.MeshStandardMaterial({ map: t, side: THREE.DoubleSide, roughness: 0.8 }));
     };
     const krushi = banner(["कृषी दिन · वसंतराव नाईक जयंती", "Krushi Din · Vasantrao Naik Jayanti"], "#1f6b2c", "#fff6d8");
-    const kp = { x: this.naikAt.x - 2.2, z: this.naikAt.z + 2.6 };
-    for (const dx of [-1.7, 1.7]) put(this.naik, new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 3, 6).translate(0, 1.5, 0), bamboo), { x: kp.x + dx, z: kp.z });
-    put(this.naik, krushi, kp);
-    krushi.position.y += 2.5;
+    // behind the putla, facing the way he does: a backdrop seen from the chowk, high above anyone's
+    // head, never in the way of the garland
+    {
+      const f = this.facing.naik, fx = Math.sin(f), fz = Math.cos(f);
+      const kp = { x: this.naikAt.x - fx * 2.2, z: this.naikAt.z - fz * 2.2 };
+      for (const s of [-1.7, 1.7]) put(this.naik, new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 5, 6).translate(0, 2.5, 0), bamboo), { x: kp.x + fz * s, z: kp.z - fx * s });
+      put(this.naik, krushi, kp);
+      krushi.position.y += 4.55; // its lower edge above his head
+      krushi.rotation.y = f;
+    }
     // Ganeshotsav: a pandal of bamboo and cloth with Bappa inside, string lights, and the aarti thali
     {
       const pandal = new THREE.Group();
@@ -313,8 +326,10 @@ export class Festivals {
       this.sankranti.add(k);
     }
     // Shivaji Jayanti: bhagwa flags all round the putla, and a rangoli at its foot
+    const sf = this.facing.shivaji, sfx = Math.sin(sf), sfz = Math.cos(sf);
     for (let i = 0; i < 10; i++) {
       const a = (i / 10) * Math.PI * 2;
+      if (Math.cos(a) * sfx + Math.sin(a) * sfz > 0.8) continue; // the front stays open, for the rangoli and the garland
       put(this.shivaji, flagPole("#f07a1a", 3.6), { x: this.shivajiAt.x + Math.cos(a) * 3.4, z: this.shivajiAt.z + Math.sin(a) * 3.4 });
     }
     const rangoli = new THREE.Group();
@@ -323,7 +338,7 @@ export class Festivals {
       ring.position.y = 0.03 + i * 0.001;
       rangoli.add(ring);
     });
-    put(this.shivaji, rangoli, { x: this.shivajiAt.x + 2.6, z: this.shivajiAt.z });
+    put(this.shivaji, rangoli, { x: this.shivajiAt.x + sfx * 3.8, z: this.shivajiAt.z + sfz * 3.8 }); // in front of the plinth's steps
     // Gudi Padwa: gudis on the neighbours' houses, and yours once you raise it
     const houses = d.world.structures.filter((s) => s.kind === "house").slice(0, 14) as { x0: number; z0: number }[];
     for (const h of houses) put(this.padwa, gudi(), { x: h.x0 - 0.4, z: h.z0 - 0.4 });

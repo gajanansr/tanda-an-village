@@ -26,12 +26,14 @@ export class Controls {
   onTorch: () => void = () => {};
   onRadio: () => void = () => {};
   onRadioNext: () => void = () => {};
+  onRadioStation: () => void = () => {};
   onHelp: () => void = () => {};
   onBoard: () => void = () => {};
   onKaam: () => void = () => {};
   onPloughField: () => void = () => {};
   onTie: () => void = () => {};
   onSleep: () => void = () => {};
+  onGoal: () => void = () => {};
   onLockChange: (locked: boolean) => void = () => {};
 
   constructor(el: HTMLElement) {
@@ -59,10 +61,20 @@ export class Controls {
     });
     document.addEventListener("mouseup", (e) => e.button === 2 && (this.useHeld = false));
     document.addEventListener("contextmenu", (e) => e.preventDefault());
+    // one tool per notch of a mouse wheel; a trackpad fires dozens of small events per swipe, so
+    // those add up to a notch's worth first, and never more than one step every 120 ms
+    let wheel = 0, lastStep = 0;
     document.addEventListener(
       "wheel",
       (e) => {
-        if (this.locked && e.deltaY) this.onScroll(Math.sign(e.deltaY));
+        if (!this.locked || !e.deltaY) return;
+        const dy = e.deltaMode === 1 ? e.deltaY * 40 : e.deltaY;
+        if (Math.sign(dy) !== Math.sign(wheel)) wheel = 0;
+        wheel += dy;
+        if (Math.abs(wheel) < 50 || e.timeStamp - lastStep < 120) return;
+        lastStep = e.timeStamp;
+        wheel = 0;
+        this.onScroll(Math.sign(dy));
       },
       { passive: true },
     );
@@ -80,7 +92,7 @@ export class Controls {
       if (e.code === "KeyF" && !e.repeat) this.onFeed();
       if (e.code === "KeyV" && !e.repeat) this.onView();
       if (e.code === "KeyT" && !e.repeat) this.onTorch();
-      if (e.code === "KeyB" && !e.repeat) this.onRadio();
+      if (e.code === "KeyB" && !e.repeat) (e.shiftKey ? this.onRadioStation() : this.onRadio());
       if (e.code === "KeyN" && !e.repeat) this.onRadioNext();
       if (e.code === "KeyH" && !e.repeat) this.onHelp();
       if (e.code === "KeyL" && !e.repeat) this.onBoard();
@@ -88,6 +100,7 @@ export class Controls {
       if (e.code === "KeyP" && !e.repeat) this.onPloughField();
       if (e.code === "KeyG" && !e.repeat) this.onTie();
       if (e.code === "KeyZ" && !e.repeat) this.onSleep();
+      if (e.code === "KeyQ" && !e.repeat) this.onGoal();
       if (this.locked) {
         this.held.add(e.code);
         if (e.code === "Space") e.preventDefault();

@@ -111,6 +111,7 @@ class Labourer {
   private retry = 0;
   constructor(readonly id: HelperId, start: P) {
     this.fig = LOOKS[id]();
+    this.fig.stool = true; // waiting in the aangan or resting at a field's edge: on a pidha
     this.pos = { ...start };
   }
   /** Walk toward p along the nav grid; true once there. */
@@ -484,6 +485,7 @@ export class Helpers {
         l.jump(s);
         l.heading = s.heading;
         l.fig.action = "sit";
+        l.fig.stool = false; // on the cart's own seat
         l.fig.hold("none");
         l.fig.animate(dt, 0);
         l.fig.root.rotation.set(0, s.heading, 0, "YXZ");
@@ -501,6 +503,7 @@ export class Helpers {
       if ((ph === "waiting" && gap > 3) || (!onTheWay && gap > 40)) l.jump(w.at);
       const there = l.walk(w.at, dt, this.d.nav);
       l.fig.action = there ? w.action : "none";
+      l.fig.stool = true;
       l.fig.hold(there || w.hold !== "hoe" ? w.hold : "hoe");
       if (there && w.action === "none") l.turn(Math.atan2(player.x - l.pos.x, player.z - l.pos.z), dt);
       l.fig.animate(dt, there ? 0 : SPEED);

@@ -3,7 +3,6 @@ import { complete, current, deadlineAt, MISSIONS, progress } from "../../shared/
 import type { Action, Result } from "../../shared/rules";
 import { DAY_MS } from "../../shared/time";
 import { helpCard } from "./help";
-import { t } from "../i18n";
 
 /** On phones, key names in the text become the on-screen buttons. */
 const TOUCH_UI = typeof matchMedia !== "undefined" && (matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 1);
@@ -110,7 +109,7 @@ export class Guide {
   constructor(parent: HTMLElement, scene: THREE.Scene, private groundAt: (x: number, z: number) => number) {
     this.card = el("div", "goal", parent);
     // on phones the card folds to one line; a tap opens it
-    this.card.addEventListener("click", () => this.card.classList.toggle("open"));
+    this.card.addEventListener("click", () => this.toggleCard());
     this.arrow = el("div", "goal-arrow", parent);
     this.arrow.hidden = true;
     this.help = el("div", "panel help", parent);
@@ -142,6 +141,11 @@ export class Guide {
     scene.add(this.marker);
   }
 
+  /** Open the goal card out in full, or fold it back to the one step that matters now (a tap, or Q). */
+  toggleCard() {
+    this.card.classList.toggle("open");
+  }
+
   toggleHelp(on = !this.helpOpen) {
     this.helpOpen = on;
     this.help.hidden = !on;
@@ -153,8 +157,8 @@ export class Guide {
     const d = el("div", "panel dialogue", this.card.parentElement!);
     this.dlg = d;
     const touch = document.body.classList.contains("is-touch");
-    const foot = touch ? "" : buttons.length === 1 ? t("E or Enter to continue") : t("Press 1–{n} to choose", { n: buttons.length });
-    d.innerHTML = `<div class="panel-card"><div class="dlg-who">${who}</div><h2>${title}</h2><p class="dlg-text">“${text}”</p><div class="big-acts"></div>${foot ? `<div class="panel-foot">${foot}</div>` : ""}</div>`;
+    // the key for each choice is on its button: E for the only one, 1, 2, 3… for several
+    d.innerHTML = `<div class="panel-card"><div class="dlg-who">${who}</div><h2>${title}</h2><p class="dlg-text">“${text}”</p><div class="big-acts${buttons.length > 1 ? " choices" : ""}"></div></div>`;
     const acts = d.querySelector(".big-acts")!;
     // E, Enter or Space picks the only button; 1, 2, 3… pick one of several. A key still held from
     // opening the card (or repeating) doesn't count.
@@ -163,7 +167,18 @@ export class Guide {
       if (!d.isConnected) return window.removeEventListener("keydown", onKey, true);
       if (e.repeat || performance.now() - opened < 250) return;
       const btns = [...acts.querySelectorAll("button")] as HTMLButtonElement[];
-      const pick = buttons.length === 1 && (e.code === "Enter" || e.code === "Space" || e.code === "KeyE") ? 0 : /^Digit[1-9]$/.test(e.code) ? Number(e.code.slice(5)) - 1 : -1;
+      // arrows light up a choice and Enter takes it, as well as the number keys
+      if (buttons.length > 1 && /^Arrow(Up|Down|Left|Right)$/.test(e.code)) {
+        const at = btns.indexOf(document.activeElement as HTMLButtonElement), step = e.code === "ArrowDown" || e.code === "ArrowRight" ? 1 : -1;
+        btns[at < 0 ? (step > 0 ? 0 : btns.length - 1) : (at + step + btns.length) % btns.length].focus();
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      const lit = btns.indexOf(document.activeElement as HTMLButtonElement);
+      const pick = (e.code === "Enter" || e.code === "NumpadEnter" || e.code === "Space") && lit >= 0 ? lit
+        : buttons.length === 1 && (e.code === "Enter" || e.code === "Space" || e.code === "KeyE") ? 0
+        : /^(Digit|Numpad)[1-9]$/.test(e.code) ? Number(e.code.slice(-1)) - 1 : -1;
       if (pick < 0 || !btns[pick]) return;
       e.preventDefault();
       e.stopPropagation();
@@ -173,7 +188,8 @@ export class Guide {
     window.addEventListener("keydown", onKey, true);
     for (const b of buttons) {
       const btn = document.createElement("button");
-      btn.innerHTML = (buttons.length > 1 ? `<kbd class="dlg-n">${acts.children.length + 1}</kbd>` : "") + b.label + (b.sub ? `<small>${b.sub}</small>` : "");
+      const key = touch ? "" : buttons.length > 1 ? String(acts.children.length + 1) : "E";
+      btn.innerHTML = `<span class="dlg-label">${b.label}${b.sub ? `<small>${b.sub}</small>` : ""}</span>${key ? `<kbd class="dlg-k">${key}</kbd>` : ""}`;
       btn.addEventListener("click", () => {
         d.remove();
         this.dlg = null;
@@ -231,7 +247,7 @@ export class Guide {
       const missed = save.missions.flags.missed && m.deadlineDays ? `<div class="goal-missed">You missed the last deadline — here's another chance.</div>` : "";
       html = `<div class="goal-head">Mission ${save.missions.i + 1} of ${MISSIONS.length} · ${m.who}</div><b>${m.title} <small>${m.local}</small></b>${deadline}${missed}
         <ul class="objectives">${ps.map((o) => `<li class="${o.got >= o.need ? "done" : o === next ? "now" : ""}"><i>${o.got >= o.need ? "✓" : ""}</i><span>${forDevice(o.text)}${o === next && o.how ? `<small class="how">${forDevice(o.how)}</small>` : ""}</span>${o.need > 1 ? ` <em>${o.got}/${o.need}</em>` : ""}</li>`).join("")}</ul>
-        <small>Reward: ${m.reward.text} · <kbd>H</kbd> controls</small>`;
+        <small>Reward: ${m.reward.text} <span class="nw"> · <kbd>H</kbd> controls</span></small>`;
       this.target = next ? whereFor(m.id, next.id, c, save) : null;
     }
     if (html !== this.cardHtml) this.card.innerHTML = this.cardHtml = html;

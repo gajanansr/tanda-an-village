@@ -164,7 +164,7 @@ kbd { display: inline-block; min-width: 18px; padding: 0 5px; margin-right: 6px;
 .slot .icon svg { width: 40px; height: 40px; display: block; filter: drop-shadow(0 1px 1px rgba(0,0,0,0.35)); }
 .slot.empty .icon { opacity: 0.35; }
 /* ---- the guide ---- */
-.goal { position: absolute; left: 12px; top: 56px; width: 330px; padding: 12px 14px; border-radius: 12px; background: rgba(246, 238, 219, 0.95); color: #2a2530; box-shadow: 0 8px 26px rgba(0,0,0,0.22); display: flex; flex-direction: column; gap: 4px; border-left: 5px solid #d9a030; }
+.goal { position: absolute; left: 12px; top: 56px; width: 330px; padding: 12px 14px; border-radius: 12px; background: rgba(246, 238, 219, 0.95); color: #2a2530; box-shadow: 0 8px 26px rgba(0,0,0,0.22); display: flex; flex-direction: column; gap: 4px; }
 .goal .goal-head { font-size: 11px; font-weight: 800; letter-spacing: 0.07em; text-transform: uppercase; color: #9a6a10; }
 .goal b { font-size: 17px; line-height: 1.25; }
 .goal span { font-size: 14px; line-height: 1.45; }
@@ -286,7 +286,7 @@ kbd { display: inline-block; min-width: 18px; padding: 0 5px; margin-right: 6px;
 .chart .axis { fill: var(--ink-2) !important; }
 kbd, .goal kbd, .help kbd, .welcome kbd { background: rgba(255, 236, 200, 0.14) !important; color: var(--gold-2) !important; border: 1px solid var(--line); }
 /* the goal card */
-.goal { border-left: 3px solid var(--gold) !important; }
+.goal { border-left: 1px solid var(--line) !important; }
 .goal b { color: #fff4dc; font-family: var(--serif); }
 .goal ul.objectives li i { border-color: var(--gold) !important; color: var(--good) !important; }
 .goal ul.objectives em { color: var(--gold-2) !important; }
@@ -458,7 +458,7 @@ html.rotated #game, html.rotated #ui { transform-origin: top left; transform: ro
 .account-card .ac-legal a { color: var(--ink-2); }
 
 /* ---- pastimes: the day's kaam, fishing at the talav, kabaddi on the maidan ---- */
-.kaam { position: absolute; right: 12px; top: 96px; width: 262px; padding: 9px 12px; border-radius: 12px; background: var(--glass); color: var(--ink); border: 1px solid var(--line); border-left: 4px solid var(--gold); backdrop-filter: blur(6px); box-shadow: 0 6px 20px rgba(0,0,0,0.18); pointer-events: auto; cursor: pointer; font-size: 12.5px; z-index: 6; }
+.kaam { position: absolute; right: 12px; top: 96px; width: 262px; padding: 9px 12px; border-radius: 12px; background: var(--glass); color: var(--ink); border: 1px solid var(--line); backdrop-filter: blur(6px); box-shadow: 0 6px 20px rgba(0,0,0,0.18); pointer-events: auto; cursor: pointer; font-size: 12.5px; z-index: 6; }
 .kaam-head { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--gold); display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
 .kaam-head span { text-transform: none; letter-spacing: 0; font-weight: 700; opacity: 0.8; }
 .kaam ul { list-style: none; margin: 6px 0 4px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -706,7 +706,7 @@ small.why.shortage { background: rgba(158,214,122,.18); color: var(--good); }
 .pl-sub.on { opacity: 1; }
 .pl-sub b { color: #ffd98a; margin-right: 6px; }
 .pl-sub i { color: #efe3c8; }
-.pl-goal { position: absolute; left: 16px; top: 16px; max-width: 330px; padding: 10px 14px; border-radius: 10px; background: rgba(20,14,8,0.7); font-size: 14px; }
+.pl-goal { position: absolute; right: 16px; top: 16px; max-width: 330px; padding: 10px 14px; border-radius: 10px; background: rgba(20,14,8,0.7); font-size: 14px; }
 .pl-goal:empty { display: none; }
 .pl-goal-head { font-weight: 700; color: #ffd98a; margin-bottom: 4px; }
 .pl-goal ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; }
@@ -758,7 +758,10 @@ body:not(.is-touch) .hotbar { bottom: 12px; padding: 4px; gap: 3px; background: 
 body:not(.is-touch) .hotbar.awake, body:not(.is-touch) .hotbar:hover { opacity: 1; transition-duration: 0.15s; }
 body:not(.is-touch) .slot { width: 44px; height: 44px; }
 body:not(.is-touch) .slot canvas, body:not(.is-touch) .slot .icon svg { width: 34px; height: 34px; }
-body:not(.is-touch) .slot .key { display: none; }
+body:not(.is-touch) .hotbar { pointer-events: auto; }
+body:not(.is-touch) .slot { cursor: pointer; }
+body:not(.is-touch) .slot .key { left: 4px; top: 2px; font-size: 10px; font-weight: 700; color: rgba(255, 244, 220, 0.75); }
+body:not(.is-touch) .slot.on .key { color: var(--gold-2); }
 body:not(.is-touch) .slot-label { bottom: 70px; }
 /* a dot, not a cross */
 .crosshair { width: 6px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, 0.85); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35); }
@@ -788,7 +791,7 @@ body:not(.is-touch) .goal-arrow { font-size: 12px; padding: 3px 9px; }
 .radio-list small { font-weight: 500; opacity: 0.6; font-size: 12px; }
 .radio-list .empty { opacity: 0.7; padding: 8px; }
 .radio-panel .hint { margin-top: 10px; font-size: 12px; }
-.radio-pill { position: absolute; left: 14px; bottom: 58px; display: flex; align-items: center; gap: 8px; max-width: 240px; padding: 6px 12px 6px 10px; border-radius: 18px; border: 1px solid var(--line); background: rgba(22, 16, 10, 0.55); backdrop-filter: blur(6px); color: #f6ead2; font: 600 13px system-ui; cursor: pointer; pointer-events: auto; z-index: 6; }
+.radio-pill { position: absolute; left: 14px; bottom: 58px; display: flex; align-items: center; gap: 8px; max-width: 340px; padding: 6px 12px 6px 10px; border-radius: 18px; border: 1px solid var(--line); background: rgba(22, 16, 10, 0.55); backdrop-filter: blur(6px); color: #f6ead2; font: 600 13px system-ui; cursor: pointer; pointer-events: auto; z-index: 6; }
 .radio-pill .t { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .radio-pill .eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
 .radio-pill .eq i { width: 3px; background: var(--gold); border-radius: 1px; animation: eq 0.9s ease-in-out infinite; }
@@ -798,3 +801,51 @@ body:not(.is-touch) .goal-arrow { font-size: 12px; padding: 3px 9px; }
 @media (prefers-reduced-motion: reduce) { .radio-pill .eq i { animation: none; height: 8px; } }
 .is-touch .radio-pill { left: calc(env(safe-area-inset-left) + 10px); bottom: auto; top: 54px; }
 .ui-title .radio-pill { display: none; }
+
+/* ---------- cards you can drive from the keyboard ----------
+ * The lit button (arrow keys, Tab) gets a clear gold ring; the key that presses a card's button is
+ * printed on the button itself. A story card reads like a line in a letter: the title, the words,
+ * then who said them.
+ */
+#ui button:focus-visible, #ui summary:focus-visible, #ui a:focus-visible { outline: 2px solid var(--gold-2); outline-offset: 3px; }
+#ui button:focus:not(:focus-visible) { outline: none; }
+#ui ::selection { background: rgba(240, 195, 106, 0.35); color: #fff4dc; }
+.panel-card { scrollbar-width: thin; scrollbar-color: rgba(255, 222, 170, 0.25) transparent; }
+.panel-foot kbd { margin: 0 2px; }
+
+.dialogue .panel-card { display: flex; flex-direction: column; width: min(560px, calc(var(--app-w, 100vw) - 32px)); padding: 26px 30px 22px; }
+.dialogue h2 { font-size: 26px; line-height: 1.15; text-wrap: balance; }
+.dialogue h2 small { display: block; margin: 4px 0 0; font-size: 13px; }
+.dialogue .dlg-text { order: 1; margin: 14px 0 6px; line-height: 1.6; text-wrap: pretty; }
+.dialogue .dlg-who { order: 2; margin-bottom: 18px; font-size: 13px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink-2) !important; }
+.dialogue .dlg-who::before { content: "— "; }
+.dialogue .big-acts { order: 3; display: flex; justify-content: flex-end; gap: 10px; margin: 0; }
+.dialogue .big-acts button { display: inline-flex; align-items: center; gap: 12px; padding: 11px 14px 11px 18px; font: 700 15px system-ui; cursor: pointer; text-align: left; }
+.dialogue .big-acts button .dlg-label small { margin-top: 2px; }
+.dialogue .big-acts .dlg-k { margin: 0; min-width: 22px; background: rgba(0, 0, 0, 0.22) !important; color: #fff6e8 !important; border-color: rgba(255, 246, 232, 0.25); }
+/* several choices: one per line, the number first, so the eye runs down them */
+.dialogue .big-acts.choices { flex-direction: column; align-items: stretch; }
+.dialogue .big-acts.choices button { width: 100%; padding: 12px 16px; background: rgba(255, 236, 200, 0.08) !important; color: var(--ink) !important; box-shadow: none; border: 1px solid var(--line) !important; }
+.dialogue .big-acts.choices button:hover, .dialogue .big-acts.choices button:focus-visible { background: rgba(194, 90, 54, 0.9) !important; color: #fff6e8 !important; transform: none; }
+.dialogue .big-acts.choices .dlg-k { order: -1; background: rgba(255, 236, 200, 0.12) !important; color: var(--gold-2) !important; }
+.dialogue .big-acts.choices button small { color: inherit; opacity: 0.75; }
+.is-touch .dialogue .big-acts button { justify-content: center; min-height: 48px; }
+/* on a phone there are no keys to list: the radio's song list gets the room instead */
+.is-touch .radio-panel .hint, .is-touch .radio-list kbd { display: none; }
+.is-touch .radio-list { max-height: 58vh; }
+/* the goal card's key, in its corner: Q opens it out or folds it away (there's no clicking it while you look around) */
+body:not(.is-touch) .goal { padding-right: 34px; }
+body:not(.is-touch) .goal::after { content: "Q"; position: absolute; right: 10px; top: 10px; min-width: 16px; padding: 0 4px; border-radius: 4px; border: 1px solid var(--line); background: rgba(255, 236, 200, 0.1); color: var(--gold-2); font: 700 11px/16px ui-monospace, Menlo, monospace; text-align: center; }
+.radio-pill .pill-k { margin: 0 0 0 2px; font-size: 10px; line-height: 16px; }
+.is-touch .radio-pill .pill-k { display: none; }
+.goal small .nw { white-space: nowrap; }
+/* a long stall list keeps its key legend in view, pinned to the bottom of the card */
+.panel-card > .panel-foot { position: sticky; bottom: -12px; margin: 10px -22px -12px; padding: 8px 22px 10px; background: rgb(30, 21, 14); box-shadow: 0 -16px 16px -4px rgb(30, 21, 14); }
+/* the radio button: always on screen, its keys beside it */
+.radio-pill .keys { display: inline-flex; align-items: center; gap: 4px; flex: none; font: 500 11px system-ui; color: rgba(246, 234, 210, 0.7); }
+.radio-pill .keys .pill-k { margin: 0; }
+.radio-pill .dial { font-size: 14px; line-height: 1; }
+.radio-pill.off { background: rgba(22, 16, 10, 0.42); }
+.radio-pill.off .t { color: rgba(246, 234, 210, 0.85); }
+.radio-pill:hover { background: rgba(40, 28, 16, 0.72); }
+.is-touch .radio-pill .keys { display: none; }

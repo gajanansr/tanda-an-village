@@ -95,9 +95,6 @@ export class Village {
       marble: () => new THREE.MeshStandardMaterial({ color: "#f7f3ea", roughness: 0.35 }),
       cream: () => mat(TEX.plaster(), { color: "#f4e3a8" }),
       green: () => new THREE.MeshStandardMaterial({ color: "#15803d", roughness: 0.8, side: THREE.DoubleSide }),
-      flagS: () => new THREE.MeshStandardMaterial({ color: "#ff9933", roughness: 0.8, side: THREE.DoubleSide }),
-      flagW: () => new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.8, side: THREE.DoubleSide }),
-      flagG: () => new THREE.MeshStandardMaterial({ color: "#138808", roughness: 0.8, side: THREE.DoubleSide }),
       navy: () => new THREE.MeshStandardMaterial({ color: "#1e3a8a", roughness: 0.6 }),
       board: () => new THREE.MeshStandardMaterial({ color: "#1f2d24", roughness: 0.9 }),
       diya: () => new THREE.MeshStandardMaterial({ color: "#ffd27a", emissive: new THREE.Color("#ffb347"), emissiveIntensity: 3 }),
@@ -470,13 +467,11 @@ export class Village {
     const px = x0 - 3.2, pz = z0 + d + 1.5;
     this.box("stone", M.stone, 0.9, 0.3, 0.9, px, y + 0.15, pz);
     this.box("marble", M.marble, 0.06, 5, 0.06, px, y + 2.8, pz);
-    ["flagS", "flagW", "flagG"].forEach((k, i) => {
-      const band = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.24, 6, 1), M[k]());
-      band.geometry.translate(0.55, 0, 0);
-      band.position.set(px + 0.03, y + 5.05 - i * 0.24, pz);
-      this.group.add(band);
-      this.flagCloth.push(band);
-    });
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.1 * (2 / 3), 8, 2), new THREE.MeshStandardMaterial({ map: tiranga(), roughness: 0.8, side: THREE.DoubleSide }));
+    flag.geometry.translate(0.55, 0, 0);
+    flag.position.set(px + 0.03, y + 4.81, pz);
+    this.group.add(flag);
+    this.flagCloth.push(flag);
     // a low compound wall with a gate on the west
     for (const [x, z, lw, ld] of [[cx - 0.5, z0 - 1.6, w + 4, 0.25], [cx - 0.5, z0 + d + 2.6, w + 4, 0.25], [x0 + w + 1.4, cz + 0.5, 0.25, d + 4.2]] as const) this.box("cream", M.cream, lw, 0.9, ld, x, y + 0.45, z);
   }
@@ -570,7 +565,7 @@ export class Village {
   /** Vasantrao Naik in bronze on a stone pedestal, with his name plaque and a marigold garland. */
   private statue(s: Extract<Structure, { kind: "statue" }>, M: Record<string, () => THREE.Material>) {
     if (s.who === "shivaji") return this.shivaji(s, M);
-    const cx = s.x + 0.5, cz = s.z + 0.5, y = s.y - 1;
+    const cx = s.x + 0.5, cz = s.z + 0.5, y = s.y; // the pedestal stands on the ground, its plaque in full view
     const bronze = () => new THREE.MeshStandardMaterial({ color: "#7a5a32", metalness: 0.75, roughness: 0.38 });
     const pedestal = () => new THREE.MeshStandardMaterial({ color: "#d9d2c2", roughness: 0.6 });
     this.box("ped", pedestal, 2.4, 0.4, 2.4, cx, y + 0.2, cz);
@@ -1071,4 +1066,37 @@ function lattice() {
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
+}
+
+/** The tiranga, 3:2: saffron, white and green, with the navy Ashoka Chakra of 24 spokes in the middle. */
+export function tiranga() {
+  const c = document.createElement("canvas");
+  c.width = 384;
+  c.height = 256;
+  const g = c.getContext("2d")!;
+  ["#ff9933", "#ffffff", "#138808"].forEach((col, i) => {
+    g.fillStyle = col;
+    g.fillRect(0, (i * 256) / 3, 384, 256 / 3 + 1);
+  });
+  const cx = 192, cy = 128, r = 36; // the chakra spans most of the white band
+  g.strokeStyle = g.fillStyle = "#000080";
+  g.lineWidth = 4;
+  g.beginPath();
+  g.arc(cx, cy, r, 0, Math.PI * 2);
+  g.stroke();
+  g.lineWidth = 1.6;
+  for (let i = 0; i < 24; i++) {
+    const a = (i / 24) * Math.PI * 2;
+    g.beginPath();
+    g.moveTo(cx, cy);
+    g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
+    g.stroke();
+  }
+  g.beginPath();
+  g.arc(cx, cy, 6, 0, Math.PI * 2);
+  g.fill();
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
 }

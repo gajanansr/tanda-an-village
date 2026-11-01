@@ -79,6 +79,7 @@ export class Kabaddi {
   private add(look: Look, team: Boy["team"], home: P) {
     const fig = new Figure(look);
     fig.root.scale.setScalar(team === "ref" ? 1 : 0.9);
+    fig.stool = true; // out players sit at the side of the court
     this.group.add(fig.root);
     this.boys.push({ fig, pos: { ...home }, heading: team === "them" ? Math.PI : 0, speed: 0, team, home, out: false, dash: 0, rest: 0, react: 0, idle: Math.random() * 10 });
   }

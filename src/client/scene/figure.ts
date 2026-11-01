@@ -676,6 +676,25 @@ export class Figure {
   action: "none" | "hoe" | "bend" | "carry" | "sit" | "draw" | "pour" | "fish" | "reel" | "crouch" | "cheer" | "type" = "none";
   private props = new Map<string, THREE.Object3D>();
   private restZ?: number[];
+  /**
+   * Sit on a little wooden stool (a pidha) that belongs to this figure: for the places with nothing
+   * to sit on (round the fire, in the aangan, at a field's edge). It's part of the figure, so it
+   * turns with them, and it only shows while they sit.
+   */
+  stool = false;
+  private stoolMesh?: THREE.Group;
+  private showStool() {
+    const on = this.stool && (this.action === "sit" || this.action === "type");
+    if (on && !this.stoolMesh) {
+      const g = new THREE.Group();
+      part(new THREE.BoxGeometry(0.44, 0.06, 0.36), "#7a5232", g, 0, 0.39, 0, 0.9); // the seat, under the hips
+      for (const x of [-0.17, 0.17]) part(new THREE.BoxGeometry(0.06, 0.36, 0.3), "#5e3e26", g, x, 0.18, 0, 0.9);
+      g.position.z = -0.08; // the hips are a little behind the feet line when the thighs come forward
+      this.root.add(g);
+      this.stoolMesh = g;
+    }
+    if (this.stoolMesh) this.stoolMesh.visible = on;
+  }
 
   /** Give the figure something to hold: a hoe (kudal) in the hands, or a clay pot (matka) on the head. */
   hold(kind: "hoe" | "pot" | "can" | "bag" | "rod" | "none") {
@@ -748,6 +767,7 @@ export class Figure {
    * `air`: 1 while off the ground, for the jump pose. Both only matter for the player's rig.
    */
   animate(dt: number, speed: number, motion: { turn?: number; air?: number } = {}) {
+    this.showStool();
     if (this.person) {
       // the realistic model walks, runs and idles; for work poses it doesn't have, the modelled figure takes over
       // (props hang on the modelled figure's hands, so anyone holding something uses it too)

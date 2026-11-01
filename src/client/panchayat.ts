@@ -12,6 +12,7 @@ import { markTexture } from "./jobs";
 import type { Nav } from "./player/nav";
 import { Q } from "./quality";
 import { banjaraWoman, Figure } from "./scene/figure";
+import { tiranga } from "./scene/village";
 
 /*
  * The Sarpanch's desk: a table and chair in the aangan in front of Rathod Bhuvan, with Balu the
@@ -73,7 +74,7 @@ function furniture() {
   box(0.08, 0.02, 0.06, new THREE.MeshLambertMaterial({ color: "#1f4e79" }), 0.05, 0.79, -0.3);
   // a little tricolour
   box(0.01, 0.3, 0.01, wood, -0.3, 0.93, -0.55);
-  ["#ff9933", "#ffffff", "#138808"].forEach((c, i) => box(0.005, 0.04, 0.14, new THREE.MeshLambertMaterial({ color: c }), -0.3, 1.05 - i * 0.04, -0.48));
+  box(0.005, 0.093, 0.14, new THREE.MeshLambertMaterial({ map: tiranga() }), -0.3, 1.01, -0.48);
   // the chair, on the verandah side (-x)
   box(0.45, 0.05, 0.45, wood, -0.8, CHAIR_Y, 0);
   for (const x of [-0.98, -0.62]) for (const z of [-0.18, 0.18]) box(0.04, CHAIR_Y, 0.04, wood, x, CHAIR_Y / 2, z);
@@ -162,7 +163,7 @@ export class PanchayatDesk {
       } else if (old) this.group.remove(old.fig.root);
       this.sitter = { id: who, fig: SITTERS[who].make() };
       this.sitter.fig.action = "sit";
-      this.sitter.fig.root.position.set(this.chair.x, this.d.ground(this.chair.x, this.chair.z) + CHAIR_Y, this.chair.z);
+      this.sitter.fig.root.position.set(this.chair.x, this.d.ground(this.chair.x, this.chair.z), this.chair.z); // feet on the ground: the sit pose puts the hips at seat height
       this.sitter.fig.root.rotation.y = Math.PI / 2; // facing the lane, over the table
       this.group.add(this.sitter.fig.root);
     }
@@ -259,7 +260,7 @@ export class PanchayatDesk {
       this.d.dialogue(`${who.name} · at the panchayat desk`, "Gram panchayat, Ukhali", who.says, [{ label: "Ram Ram", onClick: this.d.closeDialogue }]);
       return true;
     }
-    this.d.sit({ x: this.chair.x, y: this.d.ground(this.chair.x, this.chair.z) + CHAIR_Y, z: this.chair.z }, Math.PI / 2);
+    this.d.sit({ x: this.chair.x, y: this.d.ground(this.chair.x, this.chair.z), z: this.chair.z }, Math.PI / 2);
     this.d.toast(this.waiting().length ? `Balu opens the register: "${this.waiting().length} to see you today, ${this.title()} saheb."` : `Balu: "Everyone's been heard today, saheb. The fund stands at ${rs(this.desk().fund)}."`);
     return true;
   }
